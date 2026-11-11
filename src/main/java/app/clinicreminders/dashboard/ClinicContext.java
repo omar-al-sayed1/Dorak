@@ -22,41 +22,41 @@ import org.springframework.stereotype.Component;
  * doctor's login, also their doctor, to whom everything they see and change is limited.
  */
 @Component
-class ClinicContext {
+public class ClinicContext {
 
     /** @param doctorId the logged-in doctor's doctor; null for the front desk (owner, secretary), who see every doctor */
-    record Ctx(long clinicId, Clinic clinic, ZoneId zone, Instant now, LocalDate today, Language language,
+    public record Ctx(long clinicId, Clinic clinic, ZoneId zone, Instant now, LocalDate today, Language language,
                Formats formats, @Nullable Long doctorId) {
 
-        boolean isDoctor() {
+        public boolean isDoctor() {
             return doctorId != null;
         }
 
         /** Whether this user may see and change that doctor's appointments, patients and hours. */
-        boolean sees(long doctor) {
+        public boolean sees(long doctor) {
             return doctorId == null || doctorId == doctor;
         }
 
         /** @throws NotFoundException for another doctor's things when a doctor is logged in: for them, they don't exist */
-        void requireSees(long doctor, String type, Object id) {
+        public void requireSees(long doctor, String type, Object id) {
             if (!sees(doctor)) {
                 throw new NotFoundException(type, id);
             }
         }
 
-        Instant instant(LocalDate date, LocalTime time) {
+        public Instant instant(LocalDate date, LocalTime time) {
             return LocalDateTime.of(date, time).atZone(zone).toInstant();
         }
 
-        Instant startOf(LocalDate date) {
+        public Instant startOf(LocalDate date) {
             return date.atStartOfDay(zone).toInstant();
         }
 
-        LocalDate dateOf(Instant instant) {
+        public LocalDate dateOf(Instant instant) {
             return instant.atZone(zone).toLocalDate();
         }
 
-        LocalTime timeOf(Instant instant) {
+        public LocalTime timeOf(Instant instant) {
             return instant.atZone(zone).toLocalTime();
         }
     }
@@ -71,7 +71,7 @@ class ClinicContext {
         this.clock = clock;
     }
 
-    Ctx of(StaffPrincipal staff, HttpServletRequest request) {
+    public Ctx of(StaffPrincipal staff, HttpServletRequest request) {
         long clinicId = staff.requireClinicId();
         Clinic clinic = clinics.get(clinicId);
         ZoneId zone = clinic.getTimezone();

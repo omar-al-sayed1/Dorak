@@ -18,7 +18,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MockMvcTester.MockMvcRequestBuilder;
 
 /** Integration tests for dashboard pages: requests made as a logged-in staff user, with CSRF on posts. */
-abstract class DashboardTest extends IntegrationTest {
+public abstract class DashboardTest extends IntegrationTest {
 
     @Autowired
     protected MockMvcTester mvc;

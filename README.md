@@ -35,7 +35,7 @@ number.
 
 ## Run it locally
 
-You need JDK 21+ and Docker.
+You need JDK 21+ and Docker (Node.js only if you work on the React app).
 
 ```bash
 docker compose up -d db
@@ -43,6 +43,11 @@ docker compose up -d db
 ```
 
 Open http://localhost:8080. The dev profile uses a fake WhatsApp client, so nothing is sent.
+The new React dashboard (being built page by page) is at http://localhost:8080/app/.
+
+The first build also downloads Node and builds the React app; add `-Dskip.npm` to skip that when
+you only change Java. For React with live reload, run `npm run dev` in `frontend/` and open
+http://localhost:5173/app/.
 
 | Username | Password | Sees |
 | --- | --- | --- |

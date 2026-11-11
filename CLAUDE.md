@@ -21,7 +21,12 @@ any milestone.
 - Java 21, Spring Boot 4.0.x, Maven wrapper
 - PostgreSQL 16, Flyway migrations, Spring Data JPA
 - Spring Security (form login for the dashboard)
-- Thymeleaf + htmx for the dashboard (no SPA, no Node build)
+- Dashboard: moving from Thymeleaf + htmx to **React** (R1-R6, page by page; the old pages stay until
+  their React version replaces them). React app in `frontend/`: React + TypeScript + Vite,
+  react-router, @tanstack/react-query, tested with Vitest + Testing Library. Built by Maven
+  (frontend-maven-plugin, which downloads its own Node) into the jar and served at `/app/`; it talks
+  to Spring through a JSON API under `/api/` (package `api`). Texts stay in `messages_*.properties`
+  (served by `/api/messages`); styles stay in `static/css/app.css`.
 - Spring `RestClient` for the WhatsApp Cloud API (Meta Graph API)
 - JUnit 5, AssertJ, Testcontainers (PostgreSQL)
 - Docker Compose for local Postgres; Docker + Caddy on a small VPS in production
@@ -32,10 +37,13 @@ If a library isn't compatible with Spring Boot 4 yet, tell me before downgrading
 
 - Start the database: `docker compose up -d db`
 - Run in dev mode (fake WhatsApp): `./mvnw spring-boot:run "-Dspring-boot.run.profiles=dev"`
-- Run all tests: `./mvnw verify` (needs Docker: `*IT` classes use Testcontainers)
+- Run all tests: `./mvnw verify` (needs Docker: `*IT` classes use Testcontainers; also builds and tests React)
+- Java only, faster: add `-Dskip.npm` to any Maven command (skips the React install, build and tests)
+- React with live reload: start Spring as above, then `cd frontend` and `npm run dev`, and open
+  `http://localhost:5173/app/` (Vite sends everything else to Spring on 8080). React tests: `npm test`
 - Unit tests only, no Docker: `./mvnw test` (`*Test` classes)
 - Health check: `http://localhost:8080/actuator/health`
-- Dashboard: `http://localhost:8080/`. Dev profile logins: `owner` / `dev`, `secretary` / `dev`,
+- Dashboard: `http://localhost:8080/` (the new React one: `http://localhost:8080/app/`). Dev profile logins: `owner` / `dev`, `secretary` / `dev`,
   `doctor` / `dev` (Dr. Dev's own login: his appointments, patients and hours only) and `operator` / `dev`
   (created by `DevDataInitializer`, dev profile only)
 - Operator pages (onboarding clinics): `http://localhost:8080/operator`
@@ -55,10 +63,10 @@ Update this section whenever the commands change.
 
 ## Code layout
 
-Package by feature under `app.clinicreminders`:
+React dashboard in `frontend/src` (pages in `pages/`). Java, package by feature under `app.clinicreminders`:
 `clinic`, `staff`, `scheduling` (slot engine), `patient`, `appointment`, `whatsapp` (client,
 webhook, templates), `reminder`, `booking` (conversation flow), `dashboard` (web controllers and
-views), `report`, `common`.
+views), `api` (JSON API for React), `report`, `common`.
 
 ## Rules that matter
 
@@ -68,8 +76,10 @@ views), `report`, `common`.
   `Asia/Beirut`). Lebanon observes daylight saving time, so slot and reminder logic must be tested
   across the changeover.
 - **Privacy:** store only the patient's name, phone (E.164), WhatsApp business-scoped user ID
-  (needed when a webhook omits the phone number), language preference and appointment times. Never store medical notes, diagnoses or reasons for visit. Patients can be deleted on
-  request.
+  (needed when a webhook omits the phone number), language preference, appointment times and, for
+  Balance (P1), the money side of a visit: fees charged, payments (amount, date, method). Never
+  store medical notes, diagnoses or reasons for visit, not even as a charge's description. Patients
+  can be deleted on request, and their payment records go with them.
 - **Secrets:** never commit tokens. Per-clinic WhatsApp access tokens are encrypted at rest
   (AES-GCM, key from an environment variable). All configuration comes from environment variables.
 - **Webhooks:** verify `X-Hub-Signature-256` with the app secret before processing anything,

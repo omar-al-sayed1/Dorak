@@ -20,8 +20,8 @@ intervention from the operator.
 
 ## 3. Out of scope for the MVP
 
-Payments, medical records, AI chat, multi-branch clinics, native mobile apps, calendar sync and SMS
-fallback.
+Taking payments (cards, online), medical records, AI chat, multi-branch clinics, native mobile apps,
+calendar sync and SMS fallback. Recording what patients paid is planned as Balance (P1, section 5.6).
 
 ## 4. Data model
 
@@ -120,6 +120,24 @@ A super-admin page to create a clinic, set its timezone and language, store its 
 number id, business account id and access token (encrypted), and send a test message.
 A seed command creates a "Dr. Demo" clinic with sample doctors, hours and appointments for sales
 demos.
+
+### 5.6 Balance (P1, planned after R1)
+
+A ledger, not a payment system: nothing is charged to a card.
+
+- Each doctor has a default consultation fee, which can be changed per visit (a free follow-up, a procedure).
+- When a patient arrives, the desk records what they paid, in full, in part or later, and how:
+  cash, Whish, OMT, card or bank transfer. Each appointment then shows Paid, Partly paid or Unpaid.
+- Amounts are in USD. A payment can be entered in Lebanese pounds at the clinic's rate of the day,
+  set in Settings.
+- Each patient has a balance with the timeline of charges and payments. A family on one number
+  also shows the family's total, as one parent usually pays for everyone.
+- A "Who owes" list, biggest and oldest first, with Call.
+- Closing the day: the day's takings by method, against what is counted in the drawer.
+- A receipt link to send on WhatsApp or print: clinic, date, amounts, balance; nothing medical.
+- The monthly report adds charged, collected, still owed, and collected by method.
+- No WhatsApp messages about money for now: sensitive, and it would need its own approved template.
+- Built in React. Deleting a patient on request deletes their payment records too.
 
 ## 6. WhatsApp integration
 

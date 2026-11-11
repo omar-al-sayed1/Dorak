@@ -28,9 +28,9 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /** Needs attention (SPEC section 5.3): conversations flagged for a human, and failed sends. */
 @Controller
-class AttentionController {
+public class AttentionController {
 
-    static final Duration FAILED_SENDS_WINDOW = Duration.ofDays(7);
+    public static final Duration FAILED_SENDS_WINDOW = Duration.ofDays(7);
     static final int FAILED_PAGE_SIZE = 20;
 
     record ConversationRow(Long id, String phone, String patientName, String updated) {

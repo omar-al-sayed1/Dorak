@@ -1,4 +1,8 @@
 target/
+
+# React dashboard: dependencies, and the Node the Maven build downloads
+frontend/node_modules/
+frontend/node/
 .mvn/wrapper/maven-wrapper.jar
 
 # Local secrets

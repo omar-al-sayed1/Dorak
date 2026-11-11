@@ -39,11 +39,14 @@ class SecurityConfig {
                         .requestMatchers("/login", "/css/**", "/js/**", "/fonts/**", "/webjars/**", "/favicon.ico", "/error").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/webhooks/whatsapp").permitAll()
+                        // The dashboard's texts, in both languages: nothing private.
+                        .requestMatchers(HttpMethod.GET, "/api/messages").permitAll()
                         // A patient's "Add to my calendar" page: the random token in the link is the key.
                         .requestMatchers(HttpMethod.GET, "/c/*", "/c/*/calendar.ics").permitAll()
                         .requestMatchers("/dev/whatsapp", "/dev/whatsapp/**").permitAll()
                         .requestMatchers("/operator", "/operator/**").hasRole(StaffRole.OPERATOR.name())
-                        .requestMatchers("/", "/language", "/account/**").authenticated()
+                        .requestMatchers("/", "/language", "/account/**", "/app", "/app/**", "/api/session",
+                                "/api/language").authenticated()
                         // The front desk's: clinic settings, the inbox, adding and editing doctors and their
                         // logins, deleting patients. A doctor may change only their own hours and days off.
                         .requestMatchers("/settings", "/settings/**", "/attention", "/attention/**").hasAnyRole(FRONT_DESK)
@@ -103,6 +106,7 @@ class SecurityConfig {
     /**
      * htmx requests (the 30-second refresh) can't follow a redirect to the login page in place, so
      * they get 401 with {@code HX-Redirect}, which makes htmx load the login page as a whole page.
+     * The JSON API ({@code /api/}) gets a bare 401: the React app reloads its page, which logs in.
      */
     private static final class HtmxAwareEntryPoint implements AuthenticationEntryPoint {
 
@@ -113,6 +117,10 @@ class SecurityConfig {
                              AuthenticationException exception) throws IOException, ServletException {
             if ("true".equals(request.getHeader("HX-Request"))) {
                 response.setHeader("HX-Redirect", request.getContextPath() + "/login");
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            }
+            if (request.getRequestURI().startsWith(request.getContextPath() + "/api/")) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 return;
             }

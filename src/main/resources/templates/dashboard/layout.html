@@ -118,6 +118,8 @@
                                 <span th:text="#{'language.switch.' + ${otherLang}}">English</span></button>
                         </form>
                         <a th:href="@{/account/password}"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg><span th:text="#{nav.password}">Password</span></a>
+                        <!--/* The React dashboard, while it replaces these pages one by one. */-->
+                        <a th:if="${staff.clinicId() != null}" th:href="@{/app/}"><svg class="icon" aria-hidden="true"><use href="#i-sparkle"/></svg><span th:text="#{nav.preview}">New dashboard (preview)</span></a>
                         <hr>
                         <form method="post" th:action="@{/logout}">
                             <button type="submit" class="menu-item"><svg class="icon flip-rtl" aria-hidden="true"><use href="#i-logout"/></svg>

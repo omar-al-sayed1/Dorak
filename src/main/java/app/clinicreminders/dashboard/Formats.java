@@ -13,7 +13,7 @@ import app.clinicreminders.common.Language;
 import org.springframework.context.MessageSource;
 
 /** Dates and times in the clinic's zone and the user's language; patterns come from the message bundles. */
-final class Formats {
+public final class Formats {
 
     private final ZoneId zone;
     private final Locale locale;
@@ -29,32 +29,32 @@ final class Formats {
         this.time = DateTimeFormatter.ofPattern(messages.getMessage("format.time", null, locale), locale);
     }
 
-    String date(LocalDate value) {
+    public String date(LocalDate value) {
         return date.format(value);
     }
 
-    String dayShort(LocalDate value) {
+    public String dayShort(LocalDate value) {
         return dayShort.format(value);
     }
 
-    String time(LocalTime value) {
+    public String time(LocalTime value) {
         return time.format(value);
     }
 
-    String time(Instant value) {
+    public String time(Instant value) {
         return time.format(value.atZone(zone));
     }
 
-    String dateTime(Instant value) {
+    public String dateTime(Instant value) {
         return dayShort.format(value.atZone(zone)) + " " + time(value);
     }
 
-    String day(DayOfWeek day) {
+    public String day(DayOfWeek day) {
         return day.getDisplayName(TextStyle.FULL, locale);
     }
 
     /** "Mon"; Arabic has no abbreviations, so the full name there. */
-    String weekdayShort(LocalDate value) {
+    public String weekdayShort(LocalDate value) {
         return value.getDayOfWeek().getDisplayName(TextStyle.SHORT, locale);
     }
 }

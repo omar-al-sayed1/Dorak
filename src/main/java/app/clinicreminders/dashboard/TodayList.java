@@ -19,10 +19,10 @@ import org.springframework.ui.Model;
 
 /** Builds the day's appointment list, per doctor, and its figures (the Today page and its 30-second refresh). */
 @Component
-class TodayList {
+public class TodayList {
 
     /** One appointment as listed, with the actions that make sense for it right now. */
-    record Row(Long id, String time, String patientName, String patientPhone, String status, String source,
+    public record Row(Long id, String time, String patientName, String patientPhone, String status, String source,
                boolean cancelled, boolean cancelledByPatient, boolean past,
                boolean canArrive, boolean canNoShow, boolean canCancel, boolean canReschedule) {
     }
@@ -31,7 +31,7 @@ class TodayList {
      * @param nowIndex where the "now" line goes: before the row at this index (the list's size puts
      *                 it last); -1 when the day isn't today
      */
-    record DoctorDay(Long id, String name, List<Row> rows, int nowIndex) {
+    public record DoctorDay(Long id, String name, List<Row> rows, int nowIndex) {
 
         public long active() {
             return rows.stream().filter(row -> !row.cancelled()).count();
@@ -42,7 +42,7 @@ class TodayList {
      * The day at a glance. Confirmed share is of the appointments still to come or confirmed:
      * BOOKED and CONFIRMED.
      */
-    record Stats(long total, long confirmed, int confirmedPercent, long arrived, long noShows, long cancelled,
+    public record Stats(long total, long confirmed, int confirmedPercent, long arrived, long noShows, long cancelled,
                  long cancelledByPatient, long whatsApp) {
     }
 
@@ -54,8 +54,26 @@ class TodayList {
         this.appointments = appointments;
     }
 
+    /**
+     * One day: the doctors' columns, their figures, whether it is today and the time now.
+     *
+     * @param nowTime "12:04 PM", for the "now" line
+     */
+    public record Day(LocalDate date, boolean today, String nowTime, List<DoctorDay> doctors, Stats stats) {
+    }
+
     /** A doctor's login sees their own column only, and the figures are theirs. */
     void fill(Ctx ctx, LocalDate date, Model model) {
+        Day day = day(ctx, date);
+        model.addAttribute("doctors", day.doctors());
+        model.addAttribute("date", day.date());
+        model.addAttribute("isToday", day.today());
+        model.addAttribute("nowTime", day.nowTime());
+        model.addAttribute("stats", day.stats());
+    }
+
+    /** As {@link #fill}, as data. */
+    public Day day(Ctx ctx, LocalDate date) {
         List<AppointmentView> views = appointments.findViews(ctx.clinicId(), ctx.startOf(date), ctx.startOf(date.plusDays(1)))
                 .stream().filter(view -> ctx.sees(view.doctorId())).toList();
         Map<Long, List<AppointmentView>> byDoctor = views.stream().collect(Collectors.groupingBy(AppointmentView::doctorId));
@@ -63,13 +81,9 @@ class TodayList {
         List<DoctorDay> days = doctors.findByClinicIdOrderByDisplayName(ctx.clinicId()).stream()
                 .filter(doctor -> ctx.sees(doctor.getId()))
                 .filter(doctor -> doctor.isActive() || byDoctor.containsKey(doctor.getId()))
-                .map(doctor -> day(ctx, today, doctor, byDoctor.getOrDefault(doctor.getId(), List.of())))
+                .map(doctor -> column(ctx, today, doctor, byDoctor.getOrDefault(doctor.getId(), List.of())))
                 .toList();
-        model.addAttribute("doctors", days);
-        model.addAttribute("date", date);
-        model.addAttribute("isToday", today);
-        model.addAttribute("nowTime", ctx.formats().time(ctx.now()));
-        model.addAttribute("stats", stats(views));
+        return new Day(date, today, ctx.formats().time(ctx.now()), days, stats(views));
     }
 
     static Stats stats(List<AppointmentView> views) {
@@ -88,7 +102,7 @@ class TodayList {
         return views.stream().filter(test).count();
     }
 
-    private static DoctorDay day(Ctx ctx, boolean today, Doctor doctor, List<AppointmentView> views) {
+    private static DoctorDay column(Ctx ctx, boolean today, Doctor doctor, List<AppointmentView> views) {
         List<Row> rows = views.stream().map(v -> row(ctx, today, v)).toList();
         int nowIndex = -1;
         if (today) {

@@ -28,7 +28,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
  * without it they redirect back to the page.
  */
 @Controller
-class TodayController {
+public class TodayController {
 
     private final ClinicContext context;
     private final TodayList list;
@@ -101,7 +101,7 @@ class TodayController {
     }
 
     /** "Today", "Tomorrow", "In 3 days", "2 days ago": the label above the date. */
-    static String relativeDayKey(long days) {
+    public static String relativeDayKey(long days) {
         return days == 0 ? "today.relative.today" : days == 1 ? "today.relative.tomorrow"
                 : days == -1 ? "today.relative.yesterday" : days > 0 ? "today.relative.ahead" : "today.relative.ago";
     }
