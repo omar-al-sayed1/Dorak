@@ -1,0 +1,13 @@
+# Only what the build needs goes into the Docker build context.
+.git
+.github
+.idea
+.vscode
+target
+docs
+deploy
+**/.env
+frontend/node
+frontend/node_modules
+frontend/dist
+*.md

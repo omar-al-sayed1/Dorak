@@ -1,0 +1,97 @@
+# Production on one VPS (M7, docs/DEPLOY.md). Run from this folder, with a .env beside it
+# (copy .env.example). Only Caddy is reachable from outside, on 80 and 443.
+name: dorak
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dorak
+      POSTGRES_USER: dorak
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dorak -d dorak"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    shm_size: 128mb
+
+  app:
+    image: ${DORAK_IMAGE:-ghcr.io/omar-al-sayed1/dorak}:${DORAK_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # Only what the app needs: the backup keys and the database's own password variable stay out.
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/dorak
+      DATABASE_USER: dorak
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      APP_BASE_URL: https://${DOMAIN:?Set DOMAIN in .env}
+      WA_APP_SECRET: ${WA_APP_SECRET:?Set WA_APP_SECRET in .env}
+      WA_VERIFY_TOKEN: ${WA_VERIFY_TOKEN:?Set WA_VERIFY_TOKEN in .env}
+      WA_GRAPH_VERSION: ${WA_GRAPH_VERSION:?Set WA_GRAPH_VERSION in .env}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?Set TOKEN_ENCRYPTION_KEY in .env}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      BILLING_PAY_TO: ${BILLING_PAY_TO:-}
+    # A 2 GB server: Postgres, Caddy and the backups share the rest.
+    mem_limit: 1g
+    logging: &logs
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "5"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The HTTPS certificates: keep them, or Let's Encrypt's rate limits bite on every restart.
+      - caddy-data:/data
+      - caddy-config:/config
+    logging: *logs
+
+  # Nightly pg_dump, encrypted and copied to Backblaze B2 (backup/backup-once.sh).
+  backup:
+    build: ./backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Beirut
+      BACKUP_TIME: ${BACKUP_TIME:-03:30}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-30}
+      PGHOST: db
+      PGDATABASE: dorak
+      PGUSER: dorak
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      B2_KEY_ID: ${B2_KEY_ID:?Set B2_KEY_ID in .env}
+      B2_APP_KEY: ${B2_APP_KEY:?Set B2_APP_KEY in .env}
+      B2_BUCKET: ${B2_BUCKET:?Set B2_BUCKET in .env}
+      BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:?Set BACKUP_PASSPHRASE in .env}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      SERVER_NAME: ${DOMAIN}
+    volumes:
+      - backups:/backups
+    logging: *logs
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:
+  backups:

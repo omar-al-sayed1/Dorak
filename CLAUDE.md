@@ -58,6 +58,10 @@ If a library isn't compatible with Spring Boot 4 yet, tell me before downgrading
   random port without schedulers, so they work while the app is running.
 - WhatsApp simulator (dev profile only): `http://localhost:8080/dev/whatsapp`
 - Webhook URL to register with Meta: `{APP_BASE_URL}/webhooks/whatsapp` (verify token = `WA_VERIFY_TOKEN`)
+- Production image: `docker build -t dorak .` (GitHub Actions builds and pushes
+  `ghcr.io/omar-al-sayed1/dorak` from `main` after the tests pass). Server setup, deploys, backups,
+  restores and alerts: `docs/DEPLOY.md`; on the server, from `deploy/`: `./deploy.sh`,
+  `./restore.sh list|check|live`, `docker compose exec backup backup-once.sh`.
 - On Windows use `mvnw.cmd` from cmd/PowerShell, or `./mvnw` from Git Bash; `JAVA_HOME` must point to
   JDK 21+ (CI uses Temurin 21).
 
@@ -67,7 +71,7 @@ Update this section whenever the commands change.
 
 React dashboard in `frontend/src` (pages in `pages/`). Java, package by feature under `app.clinicreminders`:
 `clinic`, `staff`, `scheduling` (slot engine), `patient`, `appointment`, `whatsapp` (client,
-webhook, templates), `reminder`, `booking` (conversation flow), `billing` (clinics' subscriptions and payments), `dashboard` (web controllers and
+webhook, templates), `reminder`, `booking` (conversation flow), `billing` (clinics' subscriptions and payments), `ops` (health checks and operator alerts), `dashboard` (web controllers and
 views), `api` (JSON API for React), `report`, `common`.
 
 ## Rules that matter

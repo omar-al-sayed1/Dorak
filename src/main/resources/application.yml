@@ -28,6 +28,19 @@ spring:
     format:
       date: iso
       time: iso
+  # One thread per scheduled job (reminders, webhook sweep, purge, health watch), so a stuck job
+  # cannot also stop the health watch that reports it.
+  task:
+    scheduling:
+      pool:
+        size: 4
+
+server:
+  # In production Caddy terminates HTTPS in front of the app (deploy/). Tomcat trusts its
+  # X-Forwarded-* headers when they come from a private address (the Docker network), so redirects,
+  # links and the session cookie are https and Secure.
+  forward-headers-strategy: native
+  shutdown: graceful
 
 app:
   # Public address of this service, for links sent to patients (SPEC section 7).
@@ -42,6 +55,22 @@ management:
     web:
       exposure:
         include: health
+
+# Operator alerts (SPEC section 8): Telegram when both are set, otherwise only logged.
+alerts:
+  telegram:
+    bot-token: ${TELEGRAM_BOT_TOKEN:}
+    chat-id: ${TELEGRAM_CHAT_ID:}
+  check-interval: PT1M
+  # A problem that lasts is alerted again this often.
+  repeat-after: PT6H
+  reminders-late-after: PT10M
+  inbox-late-after: PT10M
+  failure-window: PT15M
+  failure-threshold: 3
+  # The backup container runs nightly; a day and two hours without one is a problem.
+  backup-max-age: PT26H
+  language: en
 
 whatsapp:
   client: cloud

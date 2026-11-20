@@ -36,6 +36,22 @@ class LoginPageServerIT {
         }
     }
 
+    /**
+     * In production Caddy terminates HTTPS and forwards over plain HTTP from the Docker network. The
+     * app must still know the visit was https: the session cookie is then Secure.
+     */
+    @Test
+    void behindTheHttpsProxyTheSessionCookieIsSecure() {
+        RestClient client = RestClient.create("http://localhost:" + port);
+
+        String direct = client.get().uri("/login").retrieve().toBodilessEntity().getHeaders().getFirst("Set-Cookie");
+        String proxied = client.get().uri("/login").header("X-Forwarded-Proto", "https").header("X-Forwarded-For", "203.0.113.7")
+                .retrieve().toBodilessEntity().getHeaders().getFirst("Set-Cookie");
+
+        assertThat(direct).startsWith("JSESSIONID=").doesNotContainIgnoringCase("Secure");
+        assertThat(proxied).startsWith("JSESSIONID=").containsIgnoringCase("; Secure");
+    }
+
     @Test
     void theTermsOfServiceAreOpenToEveryone() {
         RestClient client = RestClient.create("http://localhost:" + port);

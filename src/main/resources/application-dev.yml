@@ -8,6 +8,10 @@ spring:
 app:
   base-url: ${APP_BASE_URL:http://localhost:8080}
 
+# No backup container on a laptop.
+alerts:
+  backup-max-age: 0s
+
 # Fake client: nothing leaves the machine. Simulate patients at http://localhost:8080/dev/whatsapp
 whatsapp:
   client: fake

@@ -1,0 +1,25 @@
+#!/bin/sh
+# Runs a command with the rclone remote "offsite:" set up from the environment, e.g.
+#   with-remote rclone lsl offsite:
+# offsite: is an encrypting layer (rclone crypt) over the B2 bucket: dumps hold patients' names and
+# phone numbers, so they leave the server encrypted with BACKUP_PASSPHRASE. File names stay readable.
+set -eu
+
+# Everything comes from the environment: no config file (and no notice about its absence).
+export RCLONE_CONFIG=""
+
+export RCLONE_CONFIG_B2_TYPE=b2
+export RCLONE_CONFIG_B2_ACCOUNT="$B2_KEY_ID"
+export RCLONE_CONFIG_B2_KEY="$B2_APP_KEY"
+# Deleting an old dump really deletes it, instead of keeping hidden versions that still cost money.
+export RCLONE_CONFIG_B2_HARD_DELETE=true
+
+export RCLONE_CONFIG_OFFSITE_TYPE=crypt
+export RCLONE_CONFIG_OFFSITE_REMOTE="b2:$B2_BUCKET/dorak"
+export RCLONE_CONFIG_OFFSITE_FILENAME_ENCRYPTION=off
+export RCLONE_CONFIG_OFFSITE_DIRECTORY_NAME_ENCRYPTION=false
+# rclone wants the password in its "obscured" form; obscure the plain passphrase here.
+RCLONE_CONFIG_OFFSITE_PASSWORD="$(rclone obscure "$BACKUP_PASSPHRASE")"
+export RCLONE_CONFIG_OFFSITE_PASSWORD
+
+exec "$@"

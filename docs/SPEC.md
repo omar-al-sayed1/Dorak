@@ -226,8 +226,10 @@ A ledger, not a payment system: nothing is charged to a card.
 ## 7. Configuration (environment variables)
 
 `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`, `WA_APP_SECRET`, `WA_VERIFY_TOKEN`,
-`WA_GRAPH_VERSION`, `TOKEN_ENCRYPTION_KEY`, `OPERATOR_ALERT_PHONE`, `APP_BASE_URL`.
-Per-clinic WhatsApp credentials live in the database, encrypted.
+`WA_GRAPH_VERSION`, `TOKEN_ENCRYPTION_KEY`, `APP_BASE_URL`, and optionally `TELEGRAM_BOT_TOKEN` and
+`TELEGRAM_CHAT_ID` (operator alerts) and `BILLING_PAY_TO`. Per-clinic WhatsApp credentials live in the
+database, encrypted. Production adds the deploy settings in `deploy/.env.example` (domain, database
+password, Backblaze B2 keys, backup passphrase); see `docs/DEPLOY.md`.
 
 ## 8. Quality bar
 
@@ -239,7 +241,12 @@ Per-clinic WhatsApp credentials live in the database, encrypted.
 - **Booking:** every state transition, session expiry, and the double-booking race (Testcontainers).
 - **Operations:** a reminder goes out within 2 minutes of its due time; nightly `pg_dump` backup
   stored off the server, with one tested restore; an alert to the operator when sends start failing
-  or the scheduler stalls.
+  or the scheduler stalls. As built (M7): backups are encrypted and copied to Backblaze B2 by the
+  `backup` container, restored with `deploy/restore.sh`; alerts go to the operator on Telegram (a
+  bot of their own), not WhatsApp, so they still arrive when WhatsApp is what fails and need no
+  Meta template. The app checks every minute for late reminders, stuck webhook deliveries, failing
+  sends, a missing backup and an unreachable database; a server that is down altogether is caught
+  by an external uptime check on `/actuator/health`.
 
 ## 9. Milestones
 

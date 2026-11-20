@@ -79,6 +79,12 @@ Docker must be running for this one. Without Docker, `./mvnw test` runs the unit
 
 Everything comes from environment variables; see [.env.example](.env.example).
 
+## Deploy
+
+One VPS with Docker Compose: the app, PostgreSQL, Caddy for HTTPS, and nightly encrypted backups to
+Backblaze B2, with alerts to the operator on Telegram. GitHub Actions builds the image from `main`.
+Step by step: [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## More
 
 - [docs/SPEC.md](docs/SPEC.md): what the product does, how WhatsApp is used, and the milestones.
