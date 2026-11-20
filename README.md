@@ -22,11 +22,17 @@ number.
 
 **For the clinic, on a web dashboard in Arabic or English**
 - **Today** and **Week** views per doctor: book, move by drag and drop, cancel, mark arrived or no-show.
-- **Patients** search, with deletion on request.
+- **Patients** in a table (React): search, filters (booked, owe money, families, opted out), sorting,
+  next and last visit, balances; deletion on request.
 - A **Needs attention** bell for patients waiting for a call and messages that failed.
-- **Doctors' hours and days off.** Closing a day that has bookings offers to message those patients.
-- A **monthly report**: slots saved by early cancellations, no-shows, confirmations, busy hours and
-  message costs, with a CSV export.
+- **Doctors' hours and days off**, drawn and dragged on a weekly chart (or copied from one day to others).
+  Closing a day that has bookings offers to message those patients; **Add a slot** on the week page gives
+  one date one more slot.
+- **Balance** (in the new React dashboard): record what each visit cost and what was paid, in full, in
+  part or later, in dollars or in lira (at a fixed 89,500 LBP to the dollar); **Add payment** for money owed or paid outside
+  a visit; patient accounts, who owes, a receipt link, and closing the day against the cash drawer.
+- A **monthly report**: slots saved by early cancellations, no-shows, confirmations, busy hours,
+  message costs and payments, with a CSV export.
 - Optional logins for doctors, who see only their own appointments.
 
 **For the operator, who runs the service**
