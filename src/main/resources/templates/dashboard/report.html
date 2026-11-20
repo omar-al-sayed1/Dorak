@@ -38,26 +38,22 @@
     <!--/* The figures that show what the service does for the clinic. */-->
     <div class="stats report-stats">
         <div class="stat tone-ok">
-            <div class="stat-head"><span class="stat-label" th:text="#{report.slots-saved}">Slots saved</span>
-                <span class="stat-icon"><svg class="icon" aria-hidden="true"><use href="#i-sparkle"/></svg></span></div>
+            <div class="stat-head"><span class="stat-label" th:text="#{report.slots-saved}">Slots saved</span></div>
             <div class="stat-value" th:text="${t.slotsSaved()}">6</div>
             <div class="stat-sub" th:text="#{report.refilled(${t.refilled() + ''})}">Rebooked: 4</div>
         </div>
         <div class="stat tone-warn">
-            <div class="stat-head"><span class="stat-label" th:text="#{report.no-shows}">No-shows</span>
-                <span class="stat-icon"><svg class="icon" aria-hidden="true"><use href="#i-user-x"/></svg></span></div>
+            <div class="stat-head"><span class="stat-label" th:text="#{report.no-shows}">No-shows</span></div>
             <div class="stat-value" th:text="${t.noShows()}">3</div>
             <div class="stat-sub" th:text="${t.noShowPercent() != null} ? #{report.no-show-rate(${t.noShowPercent() + ''})} : ''">5% of appointments due</div>
         </div>
         <div class="stat">
-            <div class="stat-head"><span class="stat-label" th:text="#{report.confirmed}">Confirmed by the patient</span>
-                <span class="stat-icon"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg></span></div>
+            <div class="stat-head"><span class="stat-label" th:text="#{report.confirmed}">Confirmed by the patient</span></div>
             <div class="stat-value" th:text="${t.confirmed()}">41</div>
             <div class="stat-sub" th:text="#{report.reminders-sent(${t.remindersSent() + ''})}">Reminders sent: 96</div>
         </div>
         <div class="stat tone-whatsapp">
-            <div class="stat-head"><span class="stat-label" th:text="#{report.on-whatsapp}">Booked on WhatsApp</span>
-                <span class="stat-icon"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg></span></div>
+            <div class="stat-head"><span class="stat-label" th:text="#{report.on-whatsapp}">Booked on WhatsApp</span></div>
             <div class="stat-value" th:text="${t.bookedOnWhatsApp()}">22</div>
             <div class="stat-sub" th:text="#{report.of-appointments(${t.appointments() + ''})}">of 64 appointments</div>
         </div>
@@ -66,18 +62,28 @@
     <div class="report-grid">
         <section class="card">
             <div class="section-head"><h2 th:text="#{report.appointments}">Appointments</h2></div>
-            <p class="muted" th:if="${t.appointments() == 0}" th:text="#{report.empty}">No appointments this month.</p>
-            <dl class="report-rows" th:unless="${t.appointments() == 0}">
+            <p class="empty-note" th:if="${t.appointments() == 0}"><svg class="icon" aria-hidden="true"><use href="#i-today"/></svg><span th:text="#{report.empty}">No appointments this month.</span></p>
+            <!--/* How the month's appointments ended, as one bar; the rows below are its key. */-->
+            <div class="outcome-bar" role="img" th:unless="${t.appointments() == 0}" th:aria-label="#{report.outcomes}">
+                <span class="k-arrived" th:if="${t.arrived() > 0}" th:style="'flex-grow:' + ${t.arrived()}" th:title="#{report.row.arrived} + ': ' + ${t.arrived()}"></span>
+                <span class="k-no-show" th:if="${t.noShows() > 0}" th:style="'flex-grow:' + ${t.noShows()}" th:title="#{report.row.no-shows} + ': ' + ${t.noShows()}"></span>
+                <span class="k-saved" th:if="${t.slotsSaved() > 0}" th:style="'flex-grow:' + ${t.slotsSaved()}" th:title="#{report.row.slots-saved} + ': ' + ${t.slotsSaved()}"></span>
+                <span class="k-late" th:if="${t.lateCancellations() > 0}" th:style="'flex-grow:' + ${t.lateCancellations()}" th:title="#{report.row.late} + ': ' + ${t.lateCancellations()}"></span>
+                <span class="k-clinic" th:if="${t.cancelledByClinic() > 0}" th:style="'flex-grow:' + ${t.cancelledByClinic()}" th:title="#{report.row.by-clinic} + ': ' + ${t.cancelledByClinic()}"></span>
+                <span class="k-upcoming" th:if="${t.upcoming() > 0}" th:style="'flex-grow:' + ${t.upcoming()}" th:title="#{report.row.upcoming} + ': ' + ${t.upcoming()}"></span>
+                <span class="k-unmarked" th:if="${t.unmarked() > 0}" th:style="'flex-grow:' + ${t.unmarked()}" th:title="#{report.row.unmarked} + ': ' + ${t.unmarked()}"></span>
+            </div>
+            <dl class="report-rows keyed" th:unless="${t.appointments() == 0}">
                 <div class="total"><dt th:text="#{report.row.appointments}">Appointments</dt><dd th:text="${t.appointments()}">64</dd></div>
-                <div><dt th:text="#{report.row.arrived}">Arrived</dt><dd th:text="${t.arrived()}">48</dd></div>
-                <div><dt th:text="#{report.row.no-shows}">No-shows</dt><dd th:text="${t.noShows()}">3</dd></div>
-                <div class="good"><dt th:text="#{report.row.slots-saved}">Cancelled on WhatsApp at least 2 hours ahead</dt>
+                <div class="k-arrived"><dt th:text="#{report.row.arrived}">Arrived</dt><dd th:text="${t.arrived()}">48</dd></div>
+                <div class="k-no-show"><dt th:text="#{report.row.no-shows}">No-shows</dt><dd th:text="${t.noShows()}">3</dd></div>
+                <div class="good k-saved"><dt th:text="#{report.row.slots-saved}">Cancelled on WhatsApp at least 2 hours ahead</dt>
                     <dd th:text="${t.slotsSaved()}">6</dd></div>
                 <div class="sub"><dt th:text="#{report.row.refilled}">… rebooked by someone else</dt><dd th:text="${t.refilled()}">4</dd></div>
-                <div><dt th:text="#{report.row.late}">Cancelled by the patient less than 2 hours ahead</dt><dd th:text="${t.lateCancellations()}">1</dd></div>
-                <div><dt th:text="#{report.row.by-clinic}">Cancelled by the clinic</dt><dd th:text="${t.cancelledByClinic()}">2</dd></div>
-                <div><dt th:text="#{report.row.upcoming}">Still to come</dt><dd th:text="${t.upcoming()}">4</dd></div>
-                <div th:classappend="${t.unmarked() > 0} ? 'attention'"><dt>
+                <div class="k-late"><dt th:text="#{report.row.late}">Cancelled by the patient less than 2 hours ahead</dt><dd th:text="${t.lateCancellations()}">1</dd></div>
+                <div class="k-clinic"><dt th:text="#{report.row.by-clinic}">Cancelled by the clinic</dt><dd th:text="${t.cancelledByClinic()}">2</dd></div>
+                <div class="k-upcoming"><dt th:text="#{report.row.upcoming}">Still to come</dt><dd th:text="${t.upcoming()}">4</dd></div>
+                <div class="k-unmarked" th:classappend="${t.unmarked() > 0} ? 'attention'"><dt>
                         <span th:text="#{report.row.unmarked}">Not marked arrived or no-show</span>
                         <span class="hint" th:if="${t.unmarked() > 0}" th:text="#{report.unmarked.hint}">Mark them on Today.</span></dt>
                     <dd th:text="${t.unmarked()}">0</dd></div>
@@ -87,7 +93,7 @@
         <!--/* Which hours fill up and which stay empty (BusyHours). */-->
         <section class="card busy-card">
             <div class="section-head"><h2 th:text="#{report.busy}">Busy hours</h2></div>
-            <p class="muted" th:if="${busy.days().isEmpty()}" th:text="#{report.busy.none}">No opening hours this month.</p>
+            <p class="empty-note" th:if="${busy.days().isEmpty()}"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg><span th:text="#{report.busy.none}">No opening hours this month.</span></p>
             <th:block th:unless="${busy.days().isEmpty()}">
                 <p class="busy-insight" th:if="${busy.busiest() != null}">
                     <span><span class="busy-dot busy-dot-full"></span><span th:text="#{report.busy.busiest(${busy.busiest()})}">Fullest: Tuesday 10 AM (100%)</span></span>
@@ -136,7 +142,9 @@
                 </tr></thead>
                 <tbody>
                     <tr th:each="d : ${report.doctors()}" th:with="f=${d.figures()}">
-                        <th scope="row" th:text="${d.doctor()}">Dr. Khoury</th>
+                        <th scope="row"><span th:text="${d.doctor()}">Dr. Khoury</span>
+                            <span class="share-bar" aria-hidden="true" th:if="${t.appointments() > 0}">
+                                <span th:style="'--share:' + ${f.appointments() * 100 / t.appointments()} + '%'"></span></span></th>
                         <td class="num" th:attr="data-label=#{report.col.appointments}" th:text="${f.appointments()}">40</td>
                         <td class="num" th:attr="data-label=#{report.col.on-whatsapp}" th:text="${f.bookedOnWhatsApp()}">12</td>
                         <td class="num" th:attr="data-label=#{report.col.confirmed}" th:text="${f.confirmed()}">25</td>
@@ -161,6 +169,28 @@
     </section>
     </th:block>
 
+    <!--/* Balance: the month's fees and payments; the front desk's (none for a doctor's login). */-->
+    <section class="card" th:if="${money != null}">
+        <div class="section-head"><h2 th:text="#{report.money}">Payments</h2></div>
+        <!--/* What was collected, out of what was charged. */-->
+        <div class="money-top">
+            <strong dir="ltr" th:text="${money.collected()}">$1,100.00</strong>
+            <span class="muted" th:if="${money.collectedPercent() != null}"
+                  th:text="#{report.money.collected-share(${money.collectedPercent() + ''})}">88% of what was charged</span>
+        </div>
+        <div class="money-meter" aria-hidden="true" th:if="${money.collectedPercent() != null}">
+            <span th:style="'--share:' + ${money.collectedPercent()} + '%'"></span></div>
+        <dl class="report-rows">
+            <div><dt th:text="#{report.money.charged}">Charged</dt><dd dir="ltr" th:text="${money.charged()}">$1,250.00</dd></div>
+            <div class="good"><dt th:text="#{report.money.collected}">Collected</dt><dd dir="ltr" th:text="${money.collected()}">$1,100.00</dd></div>
+            <div class="sub" th:each="m : ${money.byMethod()}"><dt th:text="#{'method.' + ${m.method()}}">Cash</dt>
+                <dd><span class="method-bar" aria-hidden="true"><span th:style="'--share:' + ${m.percent()} + '%'"></span></span>
+                    <span dir="ltr" th:text="${m.amount()}">$900.00</span></dd></div>
+            <div class="attention"><dt th:text="#{report.money.owed}">Still owed now</dt><dd dir="ltr" th:text="${money.owedNow()}">$150.00</dd></div>
+        </dl>
+        <p class="hint" th:text="#{report.money.hint}">Fees charged and payments taken this month.</p>
+    </section>
+
     <!--/* The clinic's messages: not for a doctor's own login. */-->
     <section class="card" th:if="${staff.doctorId() == null}">
         <div class="section-head">
@@ -168,7 +198,7 @@
             <span class="report-cost"><span class="muted" th:text="#{report.estimated-cost}">Estimated cost</span>
                 <strong th:text="${totalCost}">$4.12</strong></span>
         </div>
-        <p class="muted" th:if="${messageRows.isEmpty()}" th:text="#{report.messages.none}">No messages sent this month.</p>
+        <p class="empty-note" th:if="${messageRows.isEmpty()}"><svg class="icon" aria-hidden="true"><use href="#i-message"/></svg><span th:text="#{report.messages.none}">No messages sent this month.</span></p>
         <div class="table-scroll" th:unless="${messageRows.isEmpty()}">
             <table class="data-table report-table">
                 <thead><tr>

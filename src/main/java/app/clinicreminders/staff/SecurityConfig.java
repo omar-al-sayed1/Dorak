@@ -18,6 +18,8 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.RequestCache;
 
@@ -33,29 +35,41 @@ class SecurityConfig {
     private static final String[] FRONT_DESK = {StaffRole.OWNER.name(), StaffRole.SECRETARY.name()};
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, LoginAttempts loginAttempts) throws Exception {
         http
+                // Too many wrong passwords for a username: it is locked for a while (LoginAttempts).
+                .addFilterBefore(new LoginThrottleFilter(loginAttempts), UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/css/**", "/js/**", "/fonts/**", "/webjars/**", "/favicon.ico", "/error").permitAll()
+                        .requestMatchers("/login", "/terms", "/css/**", "/js/**", "/fonts/**", "/img/**", "/webjars/**", "/favicon.ico", "/favicon.png", "/error").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/webhooks/whatsapp").permitAll()
                         // The dashboard's texts, in both languages: nothing private.
                         .requestMatchers(HttpMethod.GET, "/api/messages").permitAll()
                         // A patient's "Add to my calendar" page: the random token in the link is the key.
                         .requestMatchers(HttpMethod.GET, "/c/*", "/c/*/calendar.ics").permitAll()
+                        // A payment's receipt, sent to the patient: its random token is the key.
+                        .requestMatchers(HttpMethod.GET, "/r/*").permitAll()
+                        // A clinic's invoice for the service: its random token is the key.
+                        .requestMatchers(HttpMethod.GET, "/i/*").permitAll()
                         .requestMatchers("/dev/whatsapp", "/dev/whatsapp/**").permitAll()
                         .requestMatchers("/operator", "/operator/**").hasRole(StaffRole.OPERATOR.name())
                         .requestMatchers("/", "/language", "/account/**", "/app", "/app/**", "/api/session",
                                 "/api/language").authenticated()
                         // The front desk's: clinic settings, the inbox, adding and editing doctors and their
-                        // logins, deleting patients. A doctor may change only their own hours and days off.
+                        // logins, deleting patients (PatientsApi). A doctor may change only their own hours and days off.
                         .requestMatchers("/settings", "/settings/**", "/attention", "/attention/**").hasAnyRole(FRONT_DESK)
+                        // Balance: money is the clinic's, not a doctor's login's.
+                        .requestMatchers("/api/money/**").hasAnyRole(FRONT_DESK)
+                        // What the clinic pays for the service: the owner's.
+                        .requestMatchers("/billing").hasRole(StaffRole.OWNER.name())
                         .requestMatchers(HttpMethod.POST, "/doctors", "/doctors/*", "/doctors/*/delete", "/doctors/*/login",
-                                "/doctors/*/login/**", "/patients/*/delete").hasAnyRole(FRONT_DESK)
+                                "/doctors/*/login/**").hasAnyRole(FRONT_DESK)
+                        .requestMatchers(HttpMethod.DELETE, "/api/patients/*").hasAnyRole(FRONT_DESK)
                         .anyRequest().hasAnyRole(StaffRole.OWNER.name(), StaffRole.SECRETARY.name(), StaffRole.DOCTOR.name()))
                 .formLogin(form -> form
                         .loginPage("/login")
-                        .successHandler(new LanguageRememberingSuccessHandler())
+                        .successHandler(new LanguageRememberingSuccessHandler(loginAttempts))
+                        .failureHandler(new CountingFailureHandler(loginAttempts))
                         .permitAll())
                 .logout(logout -> logout.logoutSuccessUrl("/login?logout"))
                 .requestCache(cache -> cache.requestCache(pagesOnlyRequestCache()))
@@ -90,16 +104,49 @@ class SecurityConfig {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
 
-    /** Starts the session in the user's saved language, then continues to the page they asked for. */
+    /**
+     * Starts the session in the user's saved language, then continues to the page they asked for; the
+     * username's wrong-password count starts again.
+     */
     private static final class LanguageRememberingSuccessHandler extends SavedRequestAwareAuthenticationSuccessHandler {
+
+        private final LoginAttempts attempts;
+
+        LanguageRememberingSuccessHandler(LoginAttempts attempts) {
+            this.attempts = attempts;
+            // Today, in the React dashboard (an operator is sent on to /operator from there).
+            setDefaultTargetUrl("/app/");
+        }
 
         @Override
         public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                             Authentication authentication) throws IOException, ServletException {
+            attempts.succeeded(authentication.getName());
             if (authentication.getPrincipal() instanceof StaffPrincipal staff) {
                 StaffLocaleResolver.remember(request, staff.language());
             }
             super.onAuthenticationSuccess(request, response, authentication);
+        }
+    }
+
+    /** A failed login (wrong password, unknown username) counts towards the username's lock; back to /login?error. */
+    private static final class CountingFailureHandler extends SimpleUrlAuthenticationFailureHandler {
+
+        private final LoginAttempts attempts;
+
+        CountingFailureHandler(LoginAttempts attempts) {
+            super("/login?error");
+            this.attempts = attempts;
+        }
+
+        @Override
+        public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
+                                            AuthenticationException exception) throws IOException, ServletException {
+            String username = request.getParameter("username");
+            if (username != null) {
+                attempts.failed(username);
+            }
+            super.onAuthenticationFailure(request, response, exception);
         }
     }
 

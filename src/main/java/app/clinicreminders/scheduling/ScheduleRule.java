@@ -66,4 +66,9 @@ public class ScheduleRule {
     public TimeWindow window() {
         return new TimeWindow(startTime, endTime);
     }
+
+    void change(TimeWindow window) {
+        this.startTime = window.start();
+        this.endTime = window.end();
+    }
 }

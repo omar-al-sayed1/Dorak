@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{dashboard/layout :: page(~{::title}, 'billing', ~{::main})}">
+<head><title th:text="#{billing.title}">Billing</title></head>
+<body>
+<!--/*
+  The clinic owner's billing: where the Dorak subscription stands, what the next payment comes to
+  (for 1, 3, 6 or 12 months), how to pay, and past invoices. Read-only: the operator records payments.
+*/-->
+<main class="container narrow">
+    <header class="page-head">
+        <div>
+            <div class="eyebrow"><span th:text="#{app.name}">Dorak</span></div>
+            <h1 th:text="#{billing.title}">Billing</h1>
+            <p class="muted" th:text="#{billing.owner.intro}">Your Dorak subscription: what is due, how to pay, and your invoices.</p>
+        </div>
+    </header>
+
+    <div class="card empty" th:if="${subscription == null}">
+        <span class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#i-wallet"/></svg></span>
+        <strong th:text="#{billing.owner.none}">Nothing to pay yet.</strong>
+        <p th:text="#{billing.owner.none.hint}">Your operator has not set up billing for your clinic.</p>
+    </div>
+
+    <th:block th:if="${subscription != null}">
+        <section class="card bill-standing" th:classappend="'is-' + ${standing.status()}">
+            <div class="bill-standing-top">
+                <div>
+                    <span class="chip" th:classappend="'bill-' + ${standing.status()}" th:text="#{'billing.status.' + ${standing.status()}}">Active</span>
+                    <span class="btile-label" th:text="${standing.daysLeft() > 0} ? #{billing.due-on} : #{billing.was-due-on}">Next payment due</span>
+                    <strong class="bill-due" th:text="${standing.dueOn()}">1 December 2026</strong>
+                    <span class="muted" th:if="${standing.daysLeft() > 0}" th:text="#{billing.days-left(${standing.daysLeft() + ''})}">in 12 days</span>
+                    <span class="bill-late" th:if="${standing.status() == 'overdue'}"
+                          th:text="#{billing.pauses-in(${standing.daysOverdue() + ''}, ${standing.graceLeft() + ''}, ${standing.pausesOn()})}">
+                        3 days late; new bookings pause in 11 days</span>
+                    <span class="bill-late" th:if="${standing.status() == 'paused'}" th:text="#{billing.owner.paused}">
+                        New bookings are paused until the subscription is paid. Reminders still go out.</span>
+                </div>
+                <div class="bill-next">
+                    <span class="btile-label" th:text="#{billing.fee}">Monthly fee</span>
+                    <strong dir="ltr" th:text="${monthly}">$50.00</strong>
+                </div>
+            </div>
+            <th:block th:replace="~{dashboard/operator-billing :: runway(${standing})}"></th:block>
+            <div class="runway-key">
+                <span th:text="${standing.periodStart()}">1 September 2026</span>
+                <span th:text="#{billing.key.due(${standing.dueOn()})}">Due 1 December 2026</span>
+                <span th:text="#{billing.key.pause(${standing.pausesOn()})}">Pause 16 December 2026</span>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-wallet"/></svg>
+                <h2 th:text="#{billing.owner.next}">Your next payment</h2></div>
+            <div class="quote-cards read-only">
+                <div class="quote-card" th:each="q : ${quotes}" th:classappend="${q.usual()} ? 'usual'">
+                    <span class="quote-months" th:text="#{${'billing.months.' + q.months()}}">3 months</span>
+                    <strong dir="ltr" th:text="${q.total()}">$135.00</strong>
+                    <span class="muted small" th:text="#{billing.until(${q.until()})}">until 1 March 2027</span>
+                    <span class="quote-lines">
+                        <span class="quote-save" th:if="${q.discount()}"><th:block th:text="#{billing.line.discount}">Discount</th:block>
+                            <span dir="ltr" th:text="'−' + ${q.discount()}">−$15.00</span></span>
+                        <span th:if="${q.messageCosts()}"><th:block th:text="#{billing.line.messages}">Messages</th:block>
+                            <span dir="ltr" th:text="'+' + ${q.messageCosts()}">+$4.10</span></span>
+                    </span>
+                </div>
+            </div>
+            <p class="pay-to" th:unless="${#strings.isEmpty(payTo)}">
+                <svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>
+                <span><strong th:text="#{billing.owner.how}">How to pay</strong> <span dir="auto" th:text="${payTo}">Whish 70 123 456</span></span></p>
+            <p class="hint" th:text="#{billing.owner.after}">After you pay, your operator records it and your invoice appears below.</p>
+        </section>
+
+        <section class="card">
+            <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>
+                <h2 th:text="#{billing.owner.invoices}">Your invoices</h2><span class="count" th:text="${payments.size()}">3</span></div>
+            <p class="empty-note" th:if="${payments.isEmpty()}"><svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>
+                <span th:text="#{billing.invoices.none}">No payment yet.</span></p>
+            <ol class="bill-timeline">
+                <li th:each="p : ${payments}">
+                    <span class="bill-dot" aria-hidden="true"><svg class="icon"><use href="#i-check"/></svg></span>
+                    <span class="grow">
+                        <strong th:text="${p.period()}">1 September – 30 November 2026</strong>
+                        <span class="muted small"><th:block th:text="${p.number()}">INV-2026-0003</th:block> ·
+                            <th:block th:text="#{billing.paid-on(${p.paidOn()})}">paid 2 September 2026</th:block> ·
+                            <th:block th:text="#{'method.' + ${p.method()}}">Whish</th:block></span>
+                    </span>
+                    <strong class="ledger-amount" dir="ltr" th:text="${p.amount()}">$135.00</strong>
+                    <a class="button sm" th:href="@{${p.invoiceUrl()}}" target="_blank" rel="noopener">
+                        <svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg><span th:text="#{billing.invoice}">Invoice</span></a>
+                </li>
+            </ol>
+        </section>
+    </th:block>
+</main>
+</body>
+</html>

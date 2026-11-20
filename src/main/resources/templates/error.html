@@ -1,23 +1,54 @@
 <!DOCTYPE html>
-<!--/* Spring Boot's error page. Standalone and bilingual: the dashboard model isn't available here. */-->
-<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<!--/*
+  Spring Boot's error page. Standalone and bilingual (the dashboard model isn't available here): what
+  happened in plain words for the usual cases (not found, not allowed, our fault), and two ways out.
+*/-->
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:with="kind=${status == 404} ? 'missing' : (${status == 403 or status == 401} ? 'denied' : 'broken')">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title th:text="${status} ?: 'Error'">Error</title>
+    <meta name="theme-color" content="#0e6f68">
+    <meta name="robots" content="noindex">
+    <title th:text="${kind == 'missing'} ? 'Page not found · Dorak' : (${kind == 'denied'} ? 'No access · Dorak' : 'Something went wrong · Dorak')">Error · Dorak</title>
+    <link rel="icon" type="image/png" th:href="@{/favicon.png}">
     <script>try { var t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body>
 <main class="error-page">
-    <div class="centered">
-        <section class="card">
-            <div class="error-code" th:text="${status} ?: '500'">404</div>
-            <h1 th:text="${status == 404} ? 'Page not found' : 'Something went wrong'">Something went wrong</h1>
-            <p lang="ar" dir="rtl" class="muted" th:text="${status == 404} ? 'الصفحة غير موجودة' : 'حدث خطأ ما'">حدث خطأ ما</p>
-            <a class="button primary" th:href="@{/}">Today · اليوم</a>
-        </section>
-    </div>
+    <section class="error-card">
+        <span class="dorak-logo error-logo"><img class="logo-light" th:src="@{/img/dorak-logo.png}" alt="Dorak" width="120" height="32"><img
+                class="logo-dark" th:src="@{/img/dorak-logo-dark.png}" alt="Dorak" width="120" height="32"></span>
+        <div class="error-code" th:text="${status} ?: '500'">404</div>
+
+        <div class="error-text" th:switch="${kind}">
+            <th:block th:case="'missing'">
+                <h1>This page doesn't exist</h1>
+                <p>The link may be old, or the address mistyped.</p>
+                <p lang="ar" dir="rtl">هذه الصفحة غير موجودة. ربما الرابط قديم أو العنوان غير صحيح.</p>
+            </th:block>
+            <th:block th:case="'denied'">
+                <h1>You don't have access to this page</h1>
+                <p>It belongs to another role or clinic. Ask the clinic's owner if you need it.</p>
+                <p lang="ar" dir="rtl">لا تملك صلاحية لهذه الصفحة. اطلب من مالك العيادة إن كنت تحتاجها.</p>
+            </th:block>
+            <th:block th:case="*">
+                <h1>Something went wrong on our side</h1>
+                <p>Nothing you did. Try again in a moment; if it keeps happening, tell us what you were doing.</p>
+                <p lang="ar" dir="rtl">حدث خطأ من جهتنا، لا منك. حاول مجددًا بعد قليل، وإن تكرّر أخبرنا بما كنت تفعله.</p>
+            </th:block>
+        </div>
+
+        <div class="error-actions">
+            <button type="button" class="button" onclick="history.length > 1 ? history.back() : location.assign('/')">
+                <svg class="icon flip-rtl" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>
+                <span>Back · رجوع</span></button>
+            <a class="button primary" th:href="@{/app/}">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14" rx="2.5"/><path d="M4 10h16M9 3.5v4M15 3.5v4"/></svg>
+                <span>Today · اليوم</span></a>
+        </div>
+    </section>
 </main>
 </body>
 </html>

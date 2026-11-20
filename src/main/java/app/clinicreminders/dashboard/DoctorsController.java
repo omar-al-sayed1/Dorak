@@ -1,6 +1,7 @@
 package app.clinicreminders.dashboard;
 
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.TextStyle;
@@ -56,10 +57,14 @@ class DoctorsController {
      * One opening window, placed on the day bar (6:00 to 22:00): {@code left} and {@code width} are
      * percentages of the bar.
      */
-    record HoursRow(Long id, String hours, String left, String width) {
+    record HoursRow(Long id, String hours, String left, String width, String start, String end) {
     }
 
-    record DayHours(String day, List<HoursRow> windows) {
+    /**
+     * @param key   MONDAY..., for the forms; {@code day} is the name in the user's language
+     * @param minutes how long the day is open, for "5 h" or "4 h 30 min" (the phone's list of days)
+     */
+    record DayHours(String key, String day, List<HoursRow> windows, long minutes) {
     }
 
     record DayOffRow(Long id, String date, String hours, String dayOfMonth, String month) {
@@ -165,11 +170,17 @@ class DoctorsController {
         Doctor doctor = doctor(ctx, id);
         List<ScheduleRule> doctorRules = rules.findByClinicIdAndDoctorId(ctx.clinicId(), id);
         List<DayHours> week = Arrays.stream(DayOfWeek.values())
-                .map(day -> new DayHours(ctx.formats().day(day), doctorRules.stream()
-                        .filter(rule -> rule.getDayOfWeek() == day)
-                        .sorted(Comparator.comparing(rule -> rule.window().start()))
-                        .map(rule -> hoursRow(ctx, rule.getId(), rule.window()))
-                        .toList()))
+                .map(day -> {
+                    List<ScheduleRule> dayRules = doctorRules.stream()
+                            .filter(rule -> rule.getDayOfWeek() == day)
+                            .sorted(Comparator.comparing(rule -> rule.window().start()))
+                            .toList();
+                    long minutes = dayRules.stream()
+                            .mapToLong(rule -> Duration.between(rule.window().start(), rule.window().end()).toMinutes())
+                            .sum();
+                    return new DayHours(day.name(), ctx.formats().day(day),
+                            dayRules.stream().map(rule -> hoursRow(ctx, rule.getId(), rule.window())).toList(), minutes);
+                })
                 .toList();
         List<DayOffRow> daysOff = exceptions
                 .findByClinicIdAndDoctorIdAndExceptionDateGreaterThanEqualOrderByExceptionDate(ctx.clinicId(), id, ctx.today())
@@ -284,6 +295,37 @@ class DoctorsController {
             redirect.addFlashAttribute("notice", "notice.saved");
         } catch (IllegalArgumentException e) {
             redirect.addFlashAttribute("error", "error.hours");
+        }
+        return "redirect:/doctors/" + id;
+    }
+
+    /** Moves or stretches one block of the weekly hours, as dragged on the hours chart. */
+    @PostMapping("/doctors/{id}/hours/{ruleId}")
+    String changeHours(@PathVariable long id, @PathVariable long ruleId, @AuthenticationPrincipal StaffPrincipal staff,
+                       HttpServletRequest request, RedirectAttributes redirect,
+                       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime start,
+                       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime end) {
+        Ctx ctx = context.of(staff, request);
+        ctx.requireSees(id, "Doctor", id);
+        try {
+            scheduleSettings.changeWeeklyHours(ctx.clinicId(), id, ruleId, new TimeWindow(start, end));
+            redirect.addFlashAttribute("notice", "notice.saved");
+        } catch (IllegalArgumentException e) {
+            redirect.addFlashAttribute("error", "error.hours");
+        }
+        return "redirect:/doctors/" + id;
+    }
+
+    /** One day's hours onto other days ("Copy to..."), replacing theirs. */
+    @PostMapping("/doctors/{id}/hours/copy")
+    String copyHours(@PathVariable long id, @AuthenticationPrincipal StaffPrincipal staff, HttpServletRequest request,
+                     RedirectAttributes redirect, @RequestParam DayOfWeek from,
+                     @RequestParam(name = "to", required = false) List<DayOfWeek> to) {
+        Ctx ctx = context.of(staff, request);
+        ctx.requireSees(id, "Doctor", id);
+        if (to != null && !to.isEmpty()) {
+            scheduleSettings.copyDay(ctx.clinicId(), id, from, to);
+            redirect.addFlashAttribute("notice", "notice.hours-copied");
         }
         return "redirect:/doctors/" + id;
     }
@@ -415,7 +457,8 @@ class DoctorsController {
     static HoursRow hoursRow(Ctx ctx, Long id, TimeWindow window) {
         int start = clampToBar(window.start());
         int end = window.end().equals(LocalTime.MIDNIGHT) ? BAR_MINUTES : clampToBar(window.end());
-        return new HoursRow(id, hours(ctx, window), percent(start), percent(Math.max(end - start, 0)));
+        return new HoursRow(id, hours(ctx, window), percent(start), percent(Math.max(end - start, 0)),
+                window.start().toString(), window.end().toString());
     }
 
     private static int clampToBar(LocalTime time) {

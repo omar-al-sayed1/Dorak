@@ -21,15 +21,18 @@ public class SlotService {
     private final DoctorRepository doctors;
     private final ScheduleRuleRepository rules;
     private final ScheduleExceptionRepository exceptions;
+    private final ExtraSlotRepository extraSlots;
     private final AppointmentRepository appointments;
     private final Clock clock;
 
     SlotService(ClinicRepository clinics, DoctorRepository doctors, ScheduleRuleRepository rules,
-                ScheduleExceptionRepository exceptions, AppointmentRepository appointments, Clock clock) {
+                ScheduleExceptionRepository exceptions, ExtraSlotRepository extraSlots, AppointmentRepository appointments,
+                Clock clock) {
         this.clinics = clinics;
         this.doctors = doctors;
         this.rules = rules;
         this.exceptions = exceptions;
+        this.extraSlots = extraSlots;
         this.appointments = appointments;
         this.clock = clock;
     }
@@ -63,6 +66,12 @@ public class SlotService {
         return SlotEngine.freeSlots(schedule(clinicId, doctor, zone, from, to), from, to, List.of(), Instant.MIN);
     }
 
+    /** The doctor's opening windows on {@code date}, merged, extra slots included. */
+    @Transactional(readOnly = true)
+    public List<TimeWindow> windowsOn(long clinicId, long doctorId, LocalDate date) {
+        return schedule(clinicId, doctor(clinicId, doctorId), zone(clinicId), date, date).windowsOn(date);
+    }
+
     private DoctorSchedule schedule(long clinicId, Doctor doctor, ZoneId zone, LocalDate from, LocalDate to) {
         DoctorSchedule.Builder schedule = DoctorSchedule.builder(zone, doctor.slotLength());
         for (ScheduleRule rule : rules.findByClinicIdAndDoctorId(clinicId, doctor.getId())) {
@@ -73,6 +82,9 @@ public class SlotService {
             exception.hours().ifPresentOrElse(
                     hours -> schedule.hoursOn(exception.getExceptionDate(), hours.start(), hours.end()),
                     () -> schedule.closedOn(exception.getExceptionDate()));
+        }
+        for (ExtraSlot extra : extraSlots.findByClinicIdAndDoctorIdAndDateBetween(clinicId, doctor.getId(), from, to)) {
+            schedule.extraOn(extra.getDate(), extra.getStartTime());
         }
         return schedule.build();
     }

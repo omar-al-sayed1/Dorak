@@ -6,10 +6,21 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import app.clinicreminders.billing.Billing;
+import app.clinicreminders.billing.Subscription;
 import app.clinicreminders.clinic.Clinic;
+import app.clinicreminders.clinic.ClinicRemoval;
 import app.clinicreminders.clinic.ClinicSettings;
 import app.clinicreminders.common.Language;
+import app.clinicreminders.dashboard.ClinicSignals.Quick;
+import app.clinicreminders.dashboard.ClinicSignals.Signals;
+import app.clinicreminders.common.NotFoundException;
 import app.clinicreminders.common.PhoneNumbers;
 import app.clinicreminders.patient.Patient;
 import app.clinicreminders.reminder.ReminderKind;
@@ -28,6 +39,8 @@ import app.clinicreminders.whatsapp.WhatsAppConnections.ConnectionException;
 import app.clinicreminders.whatsapp.WhatsAppException;
 import app.clinicreminders.whatsapp.WhatsAppMessenger;
 import app.clinicreminders.whatsapp.WhatsAppMessenger.SendOutcome;
+import jakarta.servlet.http.HttpServletRequest;
+import org.jspecify.annotations.Nullable;
 import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -54,12 +67,20 @@ class OperatorController {
 
     /** @param ready how many of the {@link #SETUP_STEPS} onboarding steps are done */
     record ClinicRow(long id, String name, String timezone, String language, int slotMinutes, boolean connected, long logins,
-                     int ready) {
+                     int ready, @Nullable String billing, Signals signals) {
+
+        /** Not paid in time: overdue, or paused after the grace. */
+        boolean late() {
+            return "overdue".equals(billing) || "paused".equals(billing);
+        }
 
         public int readyPercent() {
             return 100 * ready / SETUP_STEPS;
         }
     }
+
+    /** What the operator types to delete a clinic, whatever the page's language. */
+    static final String DELETE_WORD = "delete";
 
     /** Details, phone number id, business account id, access token, a login. */
     static final int SETUP_STEPS = 5;
@@ -77,11 +98,17 @@ class OperatorController {
     private final DoctorRepository doctors;
     private final MessageSource messages;
     private final Clock clock;
+    private final Billing billing;
+    private final ClinicRemoval removal;
+    private final ClinicSignals signals;
 
     OperatorController(ClinicSettings clinics, WhatsAppConnections connections, StaffAccounts accounts,
                        ScheduleSettings scheduleSettings,
                        WhatsAppMessenger messenger, ReminderMessages reminderMessages, DoctorRepository doctors,
-                       MessageSource messages, Clock clock) {
+                       MessageSource messages, Clock clock, Billing billing, ClinicRemoval removal, ClinicSignals signals) {
+        this.signals = signals;
+        this.billing = billing;
+        this.removal = removal;
         this.clinics = clinics;
         this.connections = connections;
         this.accounts = accounts;
@@ -93,17 +120,67 @@ class OperatorController {
         this.clock = clock;
     }
 
+    /**
+     * Every clinic, narrowed by a search on the name and by three filters.
+     *
+     * @param whatsapp "connected" or "not-connected"
+     * @param setup    "done" or "unfinished"
+     * @param billed   "paying" (trial to due soon) or "late" (overdue or paused)"
+     */
     @GetMapping
-    String clinics(Model model) {
-        List<ClinicRow> rows = clinics.all().stream()
+    String clinics(Model model, @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "") String whatsapp,
+                   @RequestParam(defaultValue = "") String setup, @RequestParam(defaultValue = "") String billed,
+                   // Quick filters ({@link ClinicSignals}); a clinic must match every one that is on.
+                   @RequestParam(defaultValue = "false") boolean soon, @RequestParam(defaultValue = "false") boolean unpaid,
+                   @RequestParam(defaultValue = "false") boolean quiet) {
+        billing.enrolAll(LocalDate.ofInstant(clock.instant(), Clinic.DEFAULT_ZONE), clock.instant());
+        Map<Long, Subscription> subscriptions = billing.all().stream()
+                .collect(Collectors.toMap(Subscription::getClinicId, Function.identity()));
+        List<Clinic> everyClinic = clinics.all();
+        Map<Long, Signals> signals = this.signals.of(everyClinic, subscriptions);
+        Quick quick = new Quick(soon, unpaid, quiet);
+        List<ClinicRow> all = everyClinic.stream()
                 .map(c -> {
                     long logins = accounts.countLogins(c.getId());
+                    Subscription subscription = subscriptions.get(c.getId());
                     return new ClinicRow(c.getId(), c.getName(), c.getTimezone().getId(), c.getDefaultLanguage().code(),
                             c.getSlotMinutes(), c.getWaPhoneNumberId() != null && c.getWaAccessTokenEncrypted() != null, logins,
-                            readySteps(c, logins));
+                            readySteps(c, logins), subscription == null ? null : BillingViews.key(
+                                    billing.standing(subscription, LocalDate.ofInstant(clock.instant(), c.getTimezone()))),
+                            signals.get(c.getId()));
+                })
+                .toList();
+        String wanted = q.strip().toLowerCase(Locale.ROOT);
+        List<ClinicRow> rows = all.stream()
+                .filter(c -> c.name().toLowerCase(Locale.ROOT).contains(wanted))
+                .filter(c -> quick.matches(c.signals()))
+                .filter(c -> switch (whatsapp) {
+                    case "connected" -> c.connected();
+                    case "not-connected" -> !c.connected();
+                    default -> true;
+                })
+                .filter(c -> switch (setup) {
+                    case "done" -> c.ready() == SETUP_STEPS;
+                    case "unfinished" -> c.ready() < SETUP_STEPS;
+                    default -> true;
+                })
+                .filter(c -> switch (billed) {
+                    case "paying" -> c.billing() != null && !c.late();
+                    case "late" -> c.late();
+                    default -> true;
                 })
                 .toList();
         model.addAttribute("clinics", rows);
+        model.addAttribute("total", all.size());
+        model.addAttribute("q", q.strip());
+        model.addAttribute("whatsapp", whatsapp);
+        model.addAttribute("setup", setup);
+        model.addAttribute("billed", billed);
+        model.addAttribute("filtered", !wanted.isEmpty() || !(whatsapp + setup + billed).isEmpty() || quick.any());
+        model.addAttribute("quick", quick);
+        model.addAttribute("quickCounts", ClinicSignals.counts(signals));
+        model.addAttribute("deleted", removal.restorable(clock.instant()));
+        model.addAttribute("undoMinutes", ClinicRemoval.UNDO_WINDOW.toMinutes());
         model.addAttribute("defaultZone", Clinic.DEFAULT_ZONE.getId());
         model.addAttribute("steps", SETUP_STEPS);
         return "dashboard/operator";
@@ -125,6 +202,8 @@ class OperatorController {
         try {
             Clinic clinic = clinics.create(name, zone, Language.fromCode(defaultLanguage));
             scheduleSettings.changeSlotLength(clinic.getId(), slotMinutes);
+            // Billed from the start, on the general plan: the first payment is due after the trial.
+            billing.enrolAll(LocalDate.ofInstant(clock.instant(), zone), clock.instant());
             redirect.addFlashAttribute("notice", "notice.saved");
             return "redirect:/operator/clinics/" + clinic.getId();
         } catch (IllegalArgumentException e) {
@@ -145,7 +224,40 @@ class OperatorController {
         model.addAttribute("roles", List.of(StaffRole.OWNER, StaffRole.SECRETARY));
         model.addAttribute("webhookUrl", ServletUriComponentsBuilder.fromCurrentContextPath()
                 .path("/webhooks/whatsapp").toUriString());
+        model.addAttribute("contents", removal.contents(id));
         return "dashboard/operator-clinic";
+    }
+
+    /**
+     * Deletes the clinic and everything of it. Only when the operator typed the word the page asks
+     * for ("delete", or its Arabic), so it cannot happen by a slip. The clinics page then offers to
+     * undo it for a few minutes ({@link ClinicRemoval#UNDO_WINDOW}); after that it is for good.
+     */
+    @PostMapping("/clinics/{id}/delete")
+    String delete(@PathVariable long id, HttpServletRequest request, RedirectAttributes redirect,
+                  @RequestParam(defaultValue = "") String confirm) {
+        clinics.get(id);
+        String word = messages.getMessage("operator.clinic.delete.word", null, StaffLocaleResolver.language(request).locale());
+        if (!confirm.strip().equalsIgnoreCase(word) && !confirm.strip().equalsIgnoreCase(DELETE_WORD)) {
+            redirect.addFlashAttribute("error", "error.delete-word");
+            return redirectTo(id);
+        }
+        removal.remove(id, clock.instant());
+        return "redirect:/operator";
+    }
+
+    /** Undoes a deletion made in the last few minutes: the clinic comes back as it was. */
+    @PostMapping("/clinics/restore/{token}")
+    String restore(@PathVariable UUID token, RedirectAttributes redirect) {
+        try {
+            removal.restore(token, clock.instant());
+            redirect.addFlashAttribute("notice", "notice.clinic-restored");
+        } catch (NotFoundException e) {
+            redirect.addFlashAttribute("error", "error.restore-late");
+        } catch (IllegalStateException e) {
+            redirect.addFlashAttribute("error", "error.restore-conflict");
+        }
+        return "redirect:/operator";
     }
 
     @PostMapping("/clinics/{id}")

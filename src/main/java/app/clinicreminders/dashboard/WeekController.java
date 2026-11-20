@@ -8,7 +8,9 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import app.clinicreminders.appointment.Appointment;
 import app.clinicreminders.appointment.AppointmentRepository;
@@ -20,6 +22,8 @@ import app.clinicreminders.common.NotFoundException;
 import app.clinicreminders.dashboard.ClinicContext.Ctx;
 import app.clinicreminders.scheduling.Doctor;
 import app.clinicreminders.scheduling.DoctorRepository;
+import app.clinicreminders.scheduling.ExtraSlot;
+import app.clinicreminders.scheduling.ExtraSlotRepository;
 import app.clinicreminders.scheduling.ScheduleRule;
 import app.clinicreminders.scheduling.ScheduleRuleRepository;
 import app.clinicreminders.scheduling.ScheduleSettings;
@@ -56,9 +60,11 @@ class WeekController {
      *
      * @param appointmentId set for booked cells
      * @param movable       booked or confirmed and not started: it can be dragged to a free slot
+     * @param extraSlotId   set when the slot was added for this date only ("Add a slot"); free ones can be removed
+     * @param future        starts after now: today's "now" line goes before the first of these
      */
     record Cell(Instant start, String time, String kind, Long appointmentId, String patientName, String status,
-                boolean movable, String bookDate, String bookTime) {
+                boolean movable, String bookDate, String bookTime, @Nullable Long extraSlotId, boolean future) {
     }
 
     /**
@@ -66,9 +72,10 @@ class WeekController {
      * @param weekday    "Mon" for the phone's day strip, with {@code dayOfMonth}
      * @param past       before today: nothing can be opened or dropped there
      * @param booked     how many appointments the day has
+     * @param nextSlot   the time "Add a slot" suggests: right after the day's last slot
      */
     record Column(String label, String date, String weekday, int dayOfMonth, boolean today, boolean past, boolean closed,
-                  long booked, List<Cell> cells) {
+                  long booked, List<Cell> cells, String nextSlot) {
     }
 
     private final ClinicContext context;
@@ -78,10 +85,11 @@ class WeekController {
     private final SlotService slots;
     private final AppointmentRepository appointments;
     private final AppointmentService appointmentService;
+    private final ExtraSlotRepository extraSlots;
 
     WeekController(ClinicContext context, DoctorRepository doctors, ScheduleRuleRepository rules,
                    ScheduleSettings scheduleSettings, SlotService slots, AppointmentRepository appointments,
-                   AppointmentService appointmentService) {
+                   AppointmentService appointmentService, ExtraSlotRepository extraSlots) {
         this.context = context;
         this.doctors = doctors;
         this.rules = rules;
@@ -89,6 +97,7 @@ class WeekController {
         this.slots = slots;
         this.appointments = appointments;
         this.appointmentService = appointmentService;
+        this.extraSlots = extraSlots;
     }
 
     @GetMapping("/week")
@@ -116,6 +125,7 @@ class WeekController {
         model.addAttribute("openStart", usual.start().toString());
         model.addAttribute("openEnd", usual.end().toString());
         model.addAttribute("focusDay", focusDay(model.getAttribute("focusDay"), monday, ctx.today()));
+        model.addAttribute("nowTime", ctx.formats().time(ctx.now()));
         return "dashboard/week";
     }
 
@@ -139,6 +149,41 @@ class WeekController {
             }
         }
         return redirectToWeek(redirect, doctorId, date);
+    }
+
+    /** One more slot on that date only, one appointment long; the weekly hours stay as they are. */
+    @PostMapping("/week/add-slot")
+    String addSlot(@AuthenticationPrincipal StaffPrincipal staff, HttpServletRequest request, RedirectAttributes redirect,
+                   @RequestParam long doctorId,
+                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime time) {
+        Ctx ctx = context.of(staff, request);
+        ctx.requireSees(doctorId, "Doctor", doctorId);
+        if (!ctx.instant(date, time).isAfter(ctx.now())) {
+            redirect.addFlashAttribute("error", "error.not-allowed");
+        } else {
+            try {
+                scheduleSettings.addSlot(ctx.clinicId(), doctorId, date, time);
+                redirect.addFlashAttribute("notice", "notice.slot-added");
+            } catch (IllegalArgumentException e) {
+                redirect.addFlashAttribute("error", "error.slot-open");
+            }
+        }
+        return redirectToWeek(redirect, doctorId, date);
+    }
+
+    /** An added slot, while nobody is booked in it; another doctor's (or clinic's) is not found. */
+    @PostMapping("/week/remove-slot")
+    String removeSlot(@AuthenticationPrincipal StaffPrincipal staff, HttpServletRequest request, RedirectAttributes redirect,
+                      @RequestParam long doctorId, @RequestParam long slotId) {
+        Ctx ctx = context.of(staff, request);
+        ctx.requireSees(doctorId, "Doctor", doctorId);
+        ExtraSlot slot = extraSlots.findByIdAndClinicId(slotId, ctx.clinicId())
+                .filter(found -> found.getDoctorId() == doctorId)
+                .orElseThrow(() -> new NotFoundException("Slot", slotId));
+        scheduleSettings.removeSlot(ctx.clinicId(), doctorId, slotId);
+        redirect.addFlashAttribute("notice", "notice.slot-removed");
+        return redirectToWeek(redirect, doctorId, slot.getDate());
     }
 
     /** Drag and drop: moves an open appointment to the slot it was dropped on, keeping its length. */
@@ -216,6 +261,10 @@ class WeekController {
                 .stream()
                 .filter(view -> view.doctorId().equals(doctor.getId()) && view.isActive())
                 .toList();
+        Map<String, Long> added = new HashMap<>();
+        for (ExtraSlot extra : extraSlots.findByClinicIdAndDoctorIdAndDateBetween(ctx.clinicId(), doctor.getId(), monday, sunday)) {
+            added.put(extra.getDate() + "T" + extra.getStartTime(), extra.getId());
+        }
         List<Column> columns = new ArrayList<>();
         for (LocalDate day = monday; !day.isAfter(sunday); day = day.plusDays(1)) {
             LocalDate date = day;
@@ -225,7 +274,7 @@ class WeekController {
                 boolean movable = (view.status() == AppointmentStatus.BOOKED || view.status() == AppointmentStatus.CONFIRMED)
                         && view.startsAt().isAfter(ctx.now());
                 cells.add(new Cell(view.startsAt(), ctx.formats().time(view.startsAt()), "booked", view.id(),
-                        view.patientName(), view.status().name(), movable, null, null));
+                        view.patientName(), view.status().name(), movable, null, null, null, view.startsAt().isAfter(ctx.now())));
             }
             for (Slot slot : open) {
                 if (!ctx.dateOf(slot.start()).equals(date)) {
@@ -236,13 +285,17 @@ class WeekController {
                 if (!taken) {
                     boolean past = !slot.start().isAfter(ctx.now());
                     cells.add(new Cell(slot.start(), ctx.formats().time(slot.start()), past ? "past" : "free", null, null,
-                            null, false, date.toString(), ctx.timeOf(slot.start()).toString()));
+                            null, false, date.toString(), ctx.timeOf(slot.start()).toString(),
+                            added.get(date + "T" + ctx.timeOf(slot.start())), !past));
                 }
             }
             cells.sort(Comparator.comparing(Cell::start));
+            LocalTime lastEnd = open.stream().filter(slot -> ctx.dateOf(slot.start()).equals(date))
+                    .map(slot -> ctx.timeOf(slot.end())).max(Comparator.naturalOrder())
+                    .orElse(usualHours(ctx, doctor).start());
             columns.add(new Column(ctx.formats().dayShort(date), date.toString(), ctx.formats().weekdayShort(date),
                     date.getDayOfMonth(), date.equals(ctx.today()), date.isBefore(ctx.today()), cells.isEmpty(),
-                    dayAppointments.size(), cells));
+                    dayAppointments.size(), cells, lastEnd.toString()));
         }
         return columns;
     }

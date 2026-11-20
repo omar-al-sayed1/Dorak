@@ -6,6 +6,7 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Optional;
 
+import app.clinicreminders.billing.Billing;
 import app.clinicreminders.appointment.Appointment;
 import app.clinicreminders.appointment.AppointmentRepository;
 import app.clinicreminders.appointment.AppointmentService;
@@ -72,10 +73,12 @@ class AppointmentFormController {
     private final AppointmentRepository appointments;
     private final PatientRepository patients;
     private final PatientService patientService;
+    private final Billing billing;
 
     AppointmentFormController(ClinicContext context, DoctorRepository doctors, SlotService slots,
                               AppointmentService appointmentService, AppointmentRepository appointments,
-                              PatientRepository patients, PatientService patientService) {
+                              PatientRepository patients, PatientService patientService, Billing billing) {
+        this.billing = billing;
         this.context = context;
         this.doctors = doctors;
         this.slots = slots;
@@ -158,6 +161,10 @@ class AppointmentFormController {
                 @ModelAttribute("returnTo") String returnTo) {
         Ctx ctx = context.of(staff, request);
         Form form = new Form(null, doctorId, date, time, otherTime, phone, name, language, null);
+        // The subscription is long overdue (Billing): no new appointments; what is booked can still be moved or cancelled.
+        if (billing.paused(ctx.clinicId(), ctx.today())) {
+            return showForm(ctx, form, "error.billing-paused", model);
+        }
         LocalTime start = startTime(time, otherTime);
         String phoneE164 = PhoneNumbers.parseLebanese(phone);
         if (doctorId == null) {
@@ -232,7 +239,7 @@ class AppointmentFormController {
             return WeekController.redirectToWeek(redirect, doctorId, date);
         }
         redirect.addAttribute("date", date);
-        return "redirect:/";
+        return "redirect:/app/";
     }
 
     private String showForm(Ctx ctx, Form form, @Nullable String error, Model model) {

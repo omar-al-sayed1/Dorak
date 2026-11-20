@@ -29,6 +29,74 @@
         <span><span th:text="#{operator.report.no-rates}">No message rates are set, so costs can't be estimated.</span>
             <a th:href="@{/operator/rates}" th:text="#{operator.report.set-rates}">Set Meta's rates</a></span></p>
 
+    <!--/* The operator's own month: what the clinics paid, what their messages cost Meta, and what is left. */-->
+    <div class="balance-tiles earn-tiles">
+        <section class="btile hero" th:classappend="${loss} ? 'is-loss'">
+            <span class="btile-label" th:text="#{operator.report.net}">Net income</span>
+            <strong class="btile-value" dir="ltr" th:text="${net}">$415.80</strong>
+            <span class="btile-sub" th:text="#{operator.report.net.sub}">Subscriptions collected minus message costs</span>
+            <div class="money-meter on-dark" aria-hidden="true" th:if="${keptPercent != null}"><span th:style="'--share:' + ${keptPercent} + '%'"></span></div>
+            <span class="btile-delta" th:if="${keptPercent != null}" th:text="#{operator.report.kept(${keptPercent + ''})}">You keep 97%</span>
+        </section>
+        <section class="btile">
+            <span class="btile-label" th:text="#{operator.report.collected}">Collected subscriptions</span>
+            <strong class="btile-value" dir="ltr" th:text="${collected}">$420.00</strong>
+            <span class="btile-sub" th:text="#{operator.report.collected.sub(${payingClinics + ''})}">Clinics that paid: 6</span>
+        </section>
+        <section class="btile">
+            <span class="btile-label" th:text="#{operator.report.costs}">Message costs, all clinics</span>
+            <strong class="btile-value" dir="ltr" th:text="${costs}">$4.20</strong>
+            <span class="btile-sub" th:text="#{operator.report.costs.sub(${totalMessages + ''})}">Messages sent: 140</span>
+        </section>
+    </div>
+
+    <div class="grid-2 earn-charts">
+        <!--/* Six months, two bars each: what came in beside what the messages cost. */-->
+        <section class="card">
+            <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg>
+                <h2 th:text="#{operator.report.trend}">Subscriptions and message costs</h2></div>
+            <p class="empty-note" th:if="${trendEmpty}"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg>
+                <span th:text="#{operator.report.trend.none}">Nothing collected or sent in these months yet.</span></p>
+            <th:block th:unless="${trendEmpty}">
+                <div class="duo-chart" role="img" th:aria-label="#{operator.report.trend}">
+                    <div class="duo-month" th:each="m : ${trend}" th:classappend="${m.shown()} ? 'shown'"
+                         th:title="#{operator.report.collected} + ' ' + ${m.collected()} + ' · ' + #{operator.report.costs.short} + ' ' + ${m.costs()}">
+                        <span class="duo-net" dir="ltr" th:classappend="${m.loss()} ? 'loss'" th:text="${m.net()}">$415.80</span>
+                        <span class="duo-bars">
+                            <span class="duo-bar in" th:style="'--h:' + ${m.collectedPercent()} + '%'"></span>
+                            <span class="duo-bar out" th:style="'--h:' + ${m.costsPercent()} + '%'"></span>
+                        </span>
+                        <span class="duo-label" th:text="${m.label()}">Nov</span>
+                    </div>
+                </div>
+                <div class="chart-key">
+                    <span><i class="key-in"></i><th:block th:text="#{operator.report.collected}">Collected subscriptions</th:block></span>
+                    <span><i class="key-out"></i><th:block th:text="#{operator.report.costs.short}">Message costs</th:block></span>
+                    <span class="muted" th:text="#{operator.report.trend.key}">Above each month: what is left</span>
+                </div>
+            </th:block>
+        </section>
+
+        <!--/* Which clinics the month's message costs come from. */-->
+        <section class="card">
+            <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-message"/></svg>
+                <h2 th:text="#{operator.report.by-clinic}">Where the message costs go</h2></div>
+            <p class="empty-note" th:if="${clinicCosts.isEmpty()}"><svg class="icon" aria-hidden="true"><use href="#i-message"/></svg>
+                <span th:text="#{operator.report.by-clinic.none}">No message costs this month.</span></p>
+            <ol class="cost-rank">
+                <li th:each="c, it : ${clinicCosts}" th:style="'--r:' + ${it.index}">
+                    <span class="cost-rank-top">
+                        <a th:href="@{/operator/clinics/{id}/report(id=${c.id()}, month=${monthValue})}" th:text="${c.name()}">Dr. Demo</a>
+                        <span class="muted small" th:text="#{operator.report.costs.sub(${c.messages() + ''})}">Messages sent: 140</span>
+                        <strong dir="ltr" th:text="${c.cost()}">$4.12</strong>
+                        <span class="cost-share" dir="ltr" th:text="${c.share()} + '%'">62%</span>
+                    </span>
+                    <span class="cost-rank-bar" aria-hidden="true"><span th:style="'--w:' + ${c.percent()} + '%'"></span></span>
+                </li>
+            </ol>
+        </section>
+    </div>
+
     <div class="card empty" th:if="${rows.isEmpty()}">
         <span class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#i-building"/></svg></span>
         <strong th:text="#{operator.clinics.none}">No clinics yet.</strong>

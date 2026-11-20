@@ -128,6 +128,6 @@ public class TodayController {
             return WeekController.redirectToWeek(redirect, appointment.getDoctorId(), date);
         }
         redirect.addAttribute("date", date);
-        return "redirect:/";
+        return "redirect:/app/";
     }
 }

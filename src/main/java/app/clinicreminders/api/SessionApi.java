@@ -5,6 +5,7 @@ import java.time.Clock;
 import app.clinicreminders.booking.ConversationRepository;
 import app.clinicreminders.clinic.ClinicRepository;
 import app.clinicreminders.common.Language;
+import app.clinicreminders.dashboard.BillingViews;
 import app.clinicreminders.dashboard.AttentionController;
 import app.clinicreminders.dashboard.Avatars;
 import app.clinicreminders.dashboard.StaffLocaleResolver;
@@ -28,10 +29,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 class SessionApi {
 
-    /** @param attentionCount null where there is no Needs attention: operators and doctors */
+    /**
+     * @param attentionCount null where there is no Needs attention: operators and doctors
+     * @param billing        the notice about the clinic's subscription, when a payment is near or late (front desk)
+     */
     record Session(String username, String role, @Nullable Long clinicId, @Nullable String clinicName,
                    @Nullable Long doctorId, String language, String initials, int hue, @Nullable Long attentionCount,
-                   Csrf csrf) {
+                   BillingViews.@Nullable Notice billing, Csrf csrf) {
     }
 
     record Csrf(String headerName, String token) {
@@ -45,10 +49,12 @@ class SessionApi {
     private final MessageLogRepository logs;
     private final StaffAccounts accounts;
     private final Avatars avatars;
+    private final BillingViews billing;
     private final Clock clock;
 
     SessionApi(ClinicRepository clinics, ConversationRepository conversations, MessageLogRepository logs,
-               StaffAccounts accounts, Avatars avatars, Clock clock) {
+               StaffAccounts accounts, Avatars avatars, BillingViews billing, Clock clock) {
+        this.billing = billing;
         this.clinics = clinics;
         this.conversations = conversations;
         this.logs = logs;
@@ -66,7 +72,8 @@ class SessionApi {
                         + logs.countFailedSince(clinicId, clock.instant().minus(AttentionController.FAILED_SENDS_WINDOW));
         return new Session(staff.username(), staff.role().name(), clinicId, clinicName, staff.doctorId(),
                 StaffLocaleResolver.language(request).code(), avatars.initials(staff.username()),
-                avatars.hue(staff.username()), attention, new Csrf(csrf.getHeaderName(), csrf.getToken()));
+                avatars.hue(staff.username()), attention, billing.notice(staff, StaffLocaleResolver.language(request)),
+                new Csrf(csrf.getHeaderName(), csrf.getToken()));
     }
 
     /** Remembered for this session and as the user's language, as the language switch does on the pages. */

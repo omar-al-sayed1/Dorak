@@ -1,11 +1,17 @@
-import { useEffect } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { api } from "../api";
+import { api, HttpError } from "../api";
+import { AddMoneyDialog } from "../balance/AddMoneyDialog";
+import { PaymentPanel } from "../balance/PaymentPanel";
+import { CountUp } from "../CountUp";
+import { PatientName } from "../PatientCard";
+import { usd, type VisitMoney } from "../money";
 import { useT } from "../i18n";
 import { Icon } from "../icons";
 import { useSession } from "../session";
 import { PageSkeleton } from "../skeletons";
+import { useToast } from "../toasts";
 
 /** GET /api/today: one day, as the old Today page shows it. */
 export interface Today {
@@ -59,11 +65,22 @@ export interface Row {
   canNoShow: boolean;
   canCancel: boolean;
   canReschedule: boolean;
+  /** The visit's fee and payments (Balance); null before any, and always for a doctor's login. */
+  money: VisitMoney | null;
+  /** Null once the patient was deleted. */
+  patientId: number | null;
 }
 
-/** The day's appointments per doctor, refreshed every 30 seconds. Actions come in the next step (R2). */
+/**
+ * The day's appointments per doctor, refreshed every 30 seconds: arrived, no-show (each with Undo),
+ * move and cancel, as on the classic Today; the front desk also records payments here (Balance). The
+ * next patient's Arrived is the big button, and a strip under the date shows how the day is going.
+ */
 export function TodayPage() {
   const t = useT();
+  const [paying, setPaying] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+  const frontDesk = useSession().doctorId === null;
   const [params] = useSearchParams();
   const date = params.get("date");
   const today = useQuery({
@@ -85,23 +102,30 @@ export function TodayPage() {
   const day = today.data;
   return (
     <main className="container">
-      <header className="page-head">
+      <header className="page-head day-hero">
+        <DayRing stats={day.stats} />
         <div>
           <div className="eyebrow">
             <span>{t(day.relativeDayKey, day.relativeDayCount)}</span>
             <span className="live" title={t("today.refreshes")}><span className="live-dot" /><span>{t("today.live")}</span></span>
           </div>
           <h1>{day.dateLabel}</h1>
+          <DayProgress stats={day.stats} />
         </div>
         <div className="head-actions">
           <DayNav day={day} />
+          {frontDesk && (
+            <button type="button" onClick={() => setAdding(true)}><Icon name="wallet" /><span>{t("money.add")}</span></button>
+          )}
           <a className="button primary" href={`/appointments/new?date=${day.date}`}>
             <Icon name="plus" /><span>{t("today.add")}</span>
           </a>
         </div>
       </header>
       <StatsRow stats={day.stats} />
-      <Doctors day={day} />
+      <Doctors day={day} onPay={setPaying} />
+      {paying !== null && <PaymentPanel appointmentId={paying} onClose={() => setPaying(null)} />}
+      {adding && <AddMoneyDialog onClose={() => setAdding(false)} />}
     </main>
   );
 }
@@ -159,34 +183,73 @@ function StatsRow({ stats }: { stats: Stats }) {
   const t = useT();
   return (
     <div className="stats">
-      <Stat label={t("today.stats.total")} icon="today" value={stats.total} sub={t("today.stats.whatsapp", stats.whatsApp)} />
+      <Stat label={t("today.stats.total")} value={stats.total} sub={t("today.stats.whatsapp", stats.whatsApp)} />
       <div className="stat tone-ok">
-        <div className="stat-head"><span className="stat-label">{t("today.stats.confirmed")}</span>
-          <span className="stat-icon"><Icon name="check-circle" /></span></div>
-        <div className="stat-value">{stats.confirmed}</div>
+        <div className="stat-head"><span className="stat-label">{t("today.stats.confirmed")}</span></div>
+        <div className="stat-value"><CountUp value={stats.confirmed} /></div>
         <div className="meter" role="presentation"><span style={{ width: `${stats.confirmedPercent}%` }} /></div>
         <div className="stat-sub">{t("today.stats.confirmed-share", stats.confirmedPercent)}</div>
       </div>
-      <Stat tone="tone-arrived" label={t("today.stats.arrived")} icon="user-check" value={stats.arrived} />
-      <Stat tone="tone-warn" label={t("today.stats.no-show")} icon="user-x" value={stats.noShows} />
-      <Stat tone="tone-danger" label={t("today.stats.cancelled")} icon="ban" value={stats.cancelled}
+      <Stat tone="tone-arrived" label={t("today.stats.arrived")} value={stats.arrived} />
+      <Stat tone="tone-warn" label={t("today.stats.no-show")} value={stats.noShows} />
+      <Stat tone="tone-danger" label={t("today.stats.cancelled")} value={stats.cancelled}
             sub={t("today.stats.cancelled-by-patient", stats.cancelledByPatient)} />
     </div>
   );
 }
 
-function Stat({ label, icon, value, sub = "", tone }: { label: string; icon: string; value: number; sub?: string; tone?: string }) {
+/** The ring's circle: radius 26 in a 64 by 64 box. */
+const RING = 2 * Math.PI * 26;
+
+/** How far the day has got, as a ring: arrived in green, no-shows after them, the count in the middle. */
+function DayRing({ stats }: { stats: Stats }) {
+  const arc = (n: number) => (stats.total === 0 ? 0 : (RING * n) / stats.total);
+  const seen = arc(stats.arrived);
+  return (
+    <div className="day-ring" aria-hidden="true">
+      <svg viewBox="0 0 64 64">
+        <circle className="track" cx="32" cy="32" r="26" />
+        {stats.arrived > 0 && <circle className="seen" cx="32" cy="32" r="26" strokeDasharray={`${seen} 400`} />}
+        {stats.noShows > 0 && (
+          <circle className="missed" cx="32" cy="32" r="26" strokeDasharray={`${arc(stats.noShows)} 400`} strokeDashoffset={-seen} />
+        )}
+      </svg>
+      <span className="day-ring-label" dir="ltr">
+        <strong><CountUp value={stats.arrived} /></strong><span>/{stats.total}</span>
+      </span>
+    </div>
+  );
+}
+
+/** "6 of 9 arrived · 2 still to come · 1 no-show", beside the ring of the same parts. */
+function DayProgress({ stats }: { stats: Stats }) {
+  const t = useT();
+  if (stats.total === 0) {
+    return null;
+  }
+  const left = Math.max(stats.total - stats.arrived - stats.noShows, 0);
+  return (
+    <div className="day-progress">
+      <span className="day-progress-text">
+        {t("today.progress", stats.arrived, stats.total)}
+        {left > 0 && <> · {t("today.progress.left", left)}</>}
+        {stats.noShows > 0 && <> · {t("today.progress.no-show", stats.noShows)}</>}
+      </span>
+    </div>
+  );
+}
+
+function Stat({ label, value, sub = "", tone }: { label: string; value: number; sub?: string; tone?: string }) {
   return (
     <div className={tone ? `stat ${tone}` : "stat"}>
-      <div className="stat-head"><span className="stat-label">{label}</span>
-        <span className="stat-icon"><Icon name={icon} /></span></div>
-      <div className="stat-value">{value}</div>
+      <div className="stat-head"><span className="stat-label">{label}</span></div>
+      <div className="stat-value"><CountUp value={value} /></div>
       <div className="stat-sub">{sub}</div>
     </div>
   );
 }
 
-function Doctors({ day }: { day: Today }) {
+function Doctors({ day, onPay }: { day: Today; onPay: (appointmentId: number) => void }) {
   const t = useT();
   if (day.doctors.length === 0) {
     return (
@@ -211,6 +274,7 @@ function Doctors({ day }: { day: Today }) {
                title={t("today.add")} aria-label={t("today.add")}>
               <Icon name="calendar-plus" />
             </a>
+            <span className="doctor-progress" aria-hidden="true"><span style={{ width: `${done(doctor.rows)}%` }} /></span>
           </header>
           {doctor.rows.length === 0 ? (
             <div className="empty">
@@ -221,7 +285,8 @@ function Doctors({ day }: { day: Today }) {
           ) : (
             <ol className="timeline">
               {doctor.rows.map((row, index) => (
-                <AppointmentItem key={row.id} row={row} nowLine={index === doctor.nowIndex ? day.nowTime : null} />
+                <AppointmentItem key={row.id} row={row} nowLine={index === doctor.nowIndex ? day.nowTime : null} onPay={onPay}
+                                 next={day.today && index === doctor.nowIndex && row.canArrive} />
               ))}
               {doctor.nowIndex === doctor.rows.length && <NowLine time={day.nowTime} />}
             </ol>
@@ -232,14 +297,43 @@ function Doctors({ day }: { day: Today }) {
   );
 }
 
+/** The share of a doctor's appointments that are over (arrived or no-show), out of those not cancelled. */
+function done(rows: Row[]): number {
+  const kept = rows.filter((row) => !row.cancelled);
+  return kept.length === 0 ? 0 : (100 * kept.filter((row) => row.status === "ARRIVED" || row.status === "NO_SHOW").length) / kept.length;
+}
+
+/** True for a moment after the status changes, so the card can answer (app.css, .just-changed). */
+function useJustChanged(status: string): boolean {
+  const previous = useRef(status);
+  const [changed, setChanged] = useState(false);
+  useEffect(() => {
+    if (previous.current === status) {
+      return;
+    }
+    previous.current = status;
+    setChanged(true);
+    const timer = setTimeout(() => setChanged(false), 1100);
+    return () => clearTimeout(timer);
+  }, [status]);
+  return changed;
+}
+
 function NowLine({ time }: { time: string }) {
   const t = useT();
   return <li className="now-line"><span>{t("today.now", time)}</span></li>;
 }
 
-function AppointmentItem({ row, nowLine }: { row: Row; nowLine: string | null }) {
+function AppointmentItem({ row, nowLine, onPay, next = false }: {
+  row: Row; nowLine: string | null; onPay: (id: number) => void; next?: boolean;
+}) {
   const t = useT();
-  const classes = ["appt", `s-${row.status}`, row.cancelledByPatient ? "by-patient" : "", row.past ? "is-past" : ""]
+  const act = useAppointmentAction(row);
+  // Money is the front desk's; a visit whose patient was deleted has no one to charge.
+  const canPay = useSession().doctorId === null && row.patientName !== null && !row.cancelled;
+  const justChanged = useJustChanged(row.status);
+  const classes = ["appt", `s-${row.status}`, row.cancelledByPatient ? "by-patient" : "", row.past ? "is-past" : "",
+    next ? "is-next" : "", justChanged ? "just-changed" : ""]
     .filter(Boolean).join(" ");
   return (
     <>
@@ -254,7 +348,7 @@ function AppointmentItem({ row, nowLine }: { row: Row; nowLine: string | null })
         <div className="appt-who">
           <span className="avatar sm" style={{ ["--hue" as string]: row.hue }}>{row.initials}</span>
           <div className="appt-name">
-            <strong>{row.patientName ?? t("patient.deleted")}</strong>
+            <strong><PatientName id={row.patientId}>{row.patientName ?? t("patient.deleted")}</PatientName></strong>
             {row.patientPhone && (
               <a className="phone" href={`tel:${row.patientPhone}`} dir="ltr">
                 <Icon name="phone" /><span>{row.patientPhone}</span>
@@ -263,11 +357,87 @@ function AppointmentItem({ row, nowLine }: { row: Row; nowLine: string | null })
           </div>
         </div>
         <div className="appt-side">
-          <span className={row.cancelledByPatient ? "chip chip-patient-cancelled" : `chip chip-${row.status}`}>
-            {row.cancelledByPatient ? t("status.cancelled-by-patient") : t(`status.${row.status}`)}
+          <span className="appt-status">
+            {next && <span className="next-tag">{t("today.next-patient")}</span>}
+            <span className={row.cancelledByPatient ? "chip chip-patient-cancelled" : `chip chip-${row.status}`}>
+              {row.cancelledByPatient ? t("status.cancelled-by-patient") : t(`status.${row.status}`)}
+            </span>
+            {canPay && row.money && row.money.status !== "NONE" && <MoneyChip money={row.money} />}
           </span>
+          <div className="appt-actions">
+            {row.canArrive && (
+              <button type="button" className={next ? "sm primary" : "sm"} disabled={act.isPending}
+                      onClick={() => act.mutate("arrived")}>
+                <Icon name="user-check" /><span>{t("action.arrived")}</span>
+              </button>
+            )}
+            {row.canNoShow && (
+              <button type="button" className="sm" disabled={act.isPending} onClick={() => act.mutate("no-show")}>
+                <Icon name="user-x" /><span>{t("action.no-show")}</span>
+              </button>
+            )}
+            {canPay && (
+              <button type="button" className="sm" onClick={() => onPay(row.id)}>
+                <Icon name="wallet" /><span>{t("money.pay")}</span>
+              </button>
+            )}
+            {row.canReschedule && (
+              <a className="button sm ghost icon-btn" href={`/appointments/${row.id}/reschedule`}
+                 title={t("action.reschedule")} aria-label={t("action.reschedule")}><Icon name="move" /></a>
+            )}
+            {row.canCancel && (
+              <button type="button" className="sm danger icon-btn" title={t("action.cancel")} aria-label={t("action.cancel")}
+                      disabled={act.isPending}
+                      onClick={() => window.confirm(t("action.cancel-confirm")) && act.mutate("cancel")}>
+                <Icon name="ban" />
+              </button>
+            )}
+          </div>
         </div>
       </li>
     </>
+  );
+}
+
+type Action = "arrived" | "no-show" | "cancel";
+
+/**
+ * Arrived, no-show or cancel, then the day again. Arrived and no-show offer Undo for 5 seconds;
+ * cancelling asked first. An action that no longer applies (cancelled meanwhile) says so.
+ */
+function useAppointmentAction(row: Row) {
+  const t = useT();
+  const toast = useToast();
+  const queries = useQueryClient();
+  const refresh = () => queries.invalidateQueries({ queryKey: ["today"] });
+  const who = row.patientName ?? t("patient.deleted");
+  return useMutation({
+    mutationFn: (action: Action) => api<void>(`/api/appointments/${row.id}/${action}`, { method: "POST" }),
+    onSuccess: (_, action) => {
+      void refresh();
+      if (action === "cancel") {
+        toast({ text: t("today.toast.cancelled", who) });
+        return;
+      }
+      toast({
+        text: t(action === "arrived" ? "today.toast.arrived" : "today.toast.no-show", who),
+        undo: () => api<void>(`/api/appointments/${row.id}/unmark`, { method: "POST" }).then(refresh),
+      });
+    },
+    onError: (error) => {
+      void refresh();
+      toast({ text: t(error instanceof HttpError && error.status === 409 ? "error.not-allowed" : "error.generic"), error: true });
+    },
+  });
+}
+
+/** Paid, Partly paid ($10 left), Unpaid or Free: the visit's money at a glance. */
+function MoneyChip({ money }: { money: VisitMoney }) {
+  const t = useT();
+  return (
+    <span className={`chip money-${money.status}`}>
+      {t(`money.status.${money.status}`)}
+      {money.status === "PARTLY_PAID" && <> · <span dir="ltr">{t("money.left", usd(money.due))}</span></>}
+    </span>
   );
 }

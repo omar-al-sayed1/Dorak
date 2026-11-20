@@ -21,6 +21,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import app.clinicreminders.IntegrationTest;
+import app.clinicreminders.billing.Billing;
+import app.clinicreminders.billing.Subscription;
 import app.clinicreminders.appointment.Appointment;
 import app.clinicreminders.appointment.AppointmentEvents.CancelledBy;
 import app.clinicreminders.appointment.AppointmentRepository;
@@ -95,6 +97,9 @@ class BookingFlowIT extends IntegrationTest {
 
     @Autowired
     TransactionTemplate transactions;
+
+    @Autowired
+    Billing billing;
 
     private Clinic clinic;
     private Doctor khoury;
@@ -351,6 +356,32 @@ class BookingFlowIT extends IntegrationTest {
 
         assertThat(lastTo(PHONE)).isEqualTo(new TextMessage(PHONE, "الحجز عبر واتساب غير متاح حاليًا. سنتصل بك."));
         assertThat(flagged()).isTrue();
+    }
+
+    @Test
+    void aClinicWhoseSubscriptionIsLongOverdueTakesNoNewBookingsAndTheDeskIsTold() {
+        // Due on 1 October with 7 days of grace: paused since 9 October.
+        billing.save(clinic.getId(), 1, LocalDate.of(2026, 10, 1), null, new java.math.BigDecimal("50"), null, null, 7,
+                Subscription.MessageCosts.INCLUDED, clock.instant());
+        say("مرحبا");
+
+        tap("menu:book");
+
+        assertThat(lastTo(PHONE)).isEqualTo(new TextMessage(PHONE, "الحجز عبر واتساب غير متاح حاليًا. سنتصل بك."));
+        assertThat(flagged()).isTrue();
+    }
+
+    @Test
+    void withinTheDaysOfGraceBookingOnWhatsAppStillWorks() {
+        // Due on 10 October with 14 days of grace: today, the 14th, is inside it.
+        billing.save(clinic.getId(), 1, LocalDate.of(2026, 10, 10), null, new java.math.BigDecimal("50"), null, null, 14,
+                Subscription.MessageCosts.INCLUDED, clock.instant());
+        say("مرحبا");
+
+        tap("menu:book");
+
+        assertThat(lastTo(PHONE)).isInstanceOf(ListMessage.class);
+        assertThat(flagged()).isFalse();
     }
 
     // --- Families: one number, several patients ---

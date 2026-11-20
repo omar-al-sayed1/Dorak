@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{dashboard/layout :: page(~{::title}, 'invoice', ~{::main})}">
+<head><title th:text="${invoice.number()} + ' · ' + ${invoice.clinic()}">INV-2026-0003 · Clinique Zahle</title></head>
+<body>
+<!--/*
+  A clinic's invoice for its Dorak subscription, which is also its receipt: who it is for, the months
+  covered, how the amount is made up, and how it was paid. Opened from a link (the random token is
+  the key). A sheet that prints as one A4 page (app.css, "Documents"). In the reader's language when
+  staff open it, else the clinic's; the link above the sheet switches it (BillingPageController).
+*/-->
+<main class="public-page doc-page">
+    <div class="doc-actions">
+        <button type="button" class="button primary" onclick="window.print()">
+            <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg><span th:text="#{receipt.print}">Print or save as PDF</span></button>
+        <a class="button" th:href="'?lang=' + ${switchLang}" th:lang="${switchLang}">
+            <svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg><span th:text="#{'language.switch.' + ${switchLang}}">العربية</span></a>
+    </div>
+
+    <article class="doc-sheet invoice">
+        <div class="doc-body">
+            <header class="doc-head">
+                <span class="dorak-logo"><img class="logo-light" th:src="@{/img/dorak-logo.png}" alt="Dorak" height="44"><img
+                        class="logo-dark" th:src="@{/img/dorak-logo-dark.png}" alt="Dorak" height="44"></span>
+                <div class="doc-title">
+                    <span class="doc-kind" th:text="#{invoice.kind}">Invoice</span>
+                    <span class="doc-number" dir="ltr" th:text="${invoice.number()}">INV-2026-0003</span>
+                </div>
+            </header>
+
+            <section class="doc-parties">
+                <div class="doc-party">
+                    <span class="doc-label" th:text="#{invoice.billed-to}">Billed to</span>
+                    <h1 th:text="${invoice.clinic()}">Clinique Zahle</h1>
+                    <span class="muted small" th:if="${invoice.address()}" th:text="${invoice.address()}" dir="auto">Main street, Zahle</span>
+                </div>
+                <div class="doc-party">
+                    <span class="doc-label" th:text="#{invoice.from}">From</span>
+                    <strong th:text="#{app.name}">Dorak</strong>
+                    <span class="muted small" th:text="#{app.tagline}">WhatsApp reminders and bookings for clinics in Lebanon</span>
+                </div>
+                <span class="doc-stamp" th:classappend="${invoice.paidInFull()} ? '' : 'part'">
+                    <svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>
+                    <span th:text="${invoice.paidInFull()} ? #{invoice.paid} : #{invoice.part-paid}">Paid</span></span>
+            </section>
+
+            <table class="doc-table">
+                <thead>
+                <tr><th th:text="#{invoice.col.description}">Description</th><th class="num" th:text="#{invoice.col.amount}">Amount</th></tr>
+                </thead>
+                <tbody>
+                <tr>
+                    <td><strong><th:block th:text="#{invoice.line.service}">Dorak subscription</th:block> ·
+                            <th:block th:text="#{${'billing.months.' + invoice.months()}}">3 months</th:block></strong>
+                        <span class="muted small" th:text="${invoice.period()}">1 September – 30 November 2026</span></td>
+                    <td class="num" dir="ltr" th:text="${invoice.fee()}">$150.00</td>
+                </tr>
+                <tr th:if="${invoice.discount()}" class="good">
+                    <td><strong th:text="#{billing.line.discount}">Discount</strong></td>
+                    <td class="num" dir="ltr" th:text="'−' + ${invoice.discount()}">−$15.00</td>
+                </tr>
+                <tr th:if="${invoice.messageCosts()}">
+                    <td><strong th:text="#{invoice.line.messages}">WhatsApp message costs</strong>
+                        <span class="muted small" th:text="#{invoice.line.messages.hint}">Estimated from Meta's rates</span></td>
+                    <td class="num" dir="ltr" th:text="${invoice.messageCosts()}">$4.10</td>
+                </tr>
+                </tbody>
+            </table>
+
+            <div class="doc-totals">
+                <div class="grand"><span th:text="#{invoice.total}">Total</span><strong dir="ltr" th:text="${invoice.total()}">$139.10</strong></div>
+                <div><span th:text="#{invoice.amount-paid}">Amount paid</span><strong dir="ltr" th:text="${invoice.paid()}">$139.10</strong></div>
+                <div class="due" th:if="${invoice.due()}"><span th:text="#{invoice.balance-due}">Balance due</span>
+                    <strong dir="ltr" th:text="${invoice.due()}">$35.00</strong></div>
+            </div>
+
+            <dl class="doc-meta">
+                <div><dt th:text="#{receipt.date}">Date</dt><dd th:text="${invoice.paidOn()}">2 September 2026</dd></div>
+                <div><dt th:text="#{receipt.method}">Paid by</dt><dd th:text="#{'method.' + ${invoice.method()}}">Whish</dd></div>
+                <div th:if="${invoice.reference()}"><dt th:text="#{invoice.reference}">Reference</dt>
+                    <dd dir="ltr" th:text="${invoice.reference()}">W-88213</dd></div>
+            </dl>
+
+            <footer class="doc-foot">
+                <span th:text="#{invoice.thanks}">Thank you for working with Dorak.</span>
+                <span th:text="#{invoice.foot}">This invoice is also your receipt.</span>
+            </footer>
+        </div>
+    </article>
+</main>
+</body>
+</html>

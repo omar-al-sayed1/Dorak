@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{dashboard/layout :: page(~{::title}, 'receipt', ~{::main})}">
+<head><title th:text="#{receipt.title(${receipt.number()})} + ' · ' + ${receipt.clinic()}">Receipt · Dr. Demo</title></head>
+<body>
+<!--/*
+  A payment's receipt for the patient, opened from WhatsApp or printed: the clinic, who paid, when,
+  how much and how, and what is left. Nothing medical. A sheet that prints as one A4 page (app.css,
+  "Documents"). In the reader's language when staff open it, else the patient's; the link above the
+  sheet switches it (ReceiptPageController).
+*/-->
+<main class="public-page doc-page">
+    <div class="doc-actions">
+        <button type="button" class="button primary" onclick="window.print()">
+            <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg><span th:text="#{receipt.print}">Print or save as PDF</span></button>
+        <a class="button" th:href="'?lang=' + ${switchLang}" th:lang="${switchLang}">
+            <svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg><span th:text="#{'language.switch.' + ${switchLang}}">العربية</span></a>
+    </div>
+
+    <article class="doc-sheet receipt">
+        <div class="doc-body">
+            <header class="doc-head">
+                <div class="doc-party">
+                    <h1 th:text="${receipt.clinic()}">Dr. Demo</h1>
+                    <span class="muted small" th:if="${receipt.address()}" th:text="${receipt.address()}" dir="auto">Main street, Zahle</span>
+                </div>
+                <div class="doc-title">
+                    <span class="doc-kind" th:text="#{receipt.kind}">Receipt</span>
+                    <span class="doc-number" th:text="#{receipt.number(${receipt.number()})}">No. 12</span>
+                </div>
+            </header>
+
+            <section class="doc-parties">
+                <div class="doc-party">
+                    <span class="doc-label" th:text="#{receipt.received-from}">Received from</span>
+                    <strong th:text="${receipt.patient()}">Rana Haddad</strong>
+                </div>
+                <div class="doc-party">
+                    <span class="doc-label" th:text="#{receipt.date}">Date</span>
+                    <strong th:text="${receipt.paidAt()}">Thursday 15 October · 10:42 AM</strong>
+                </div>
+                <span class="doc-stamp">
+                    <svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg><span th:text="#{receipt.paid}">Paid</span></span>
+            </section>
+
+            <div class="doc-amount">
+                <span class="doc-label" th:text="#{receipt.amount}">Amount paid</span>
+                <strong dir="ltr" th:text="${receipt.amount()}">$30.00</strong>
+                <span class="muted small" th:if="${receipt.amountLbp()}"
+                      th:text="#{receipt.in-lbp(${receipt.amountLbp()}, ${receipt.rate()})}">2,685,000 LBP at 89,500 LBP</span>
+            </div>
+
+            <dl class="doc-meta">
+                <div><dt th:text="#{receipt.method}">Paid by</dt><dd th:text="${receipt.method()}">Cash</dd></div>
+                <div><dt th:text="#{receipt.paid-to}">Paid to</dt><dd th:text="${receipt.clinic()}">Dr. Demo</dd></div>
+                <div th:classappend="${receipt.settled() or receipt.inCredit()} ? 'settled' : 'owing'">
+                    <dt th:text="#{receipt.balance}">Balance</dt>
+                    <dd th:text="${receipt.settled()} ? #{receipt.settled} : (${receipt.inCredit()} ? #{receipt.credit(${receipt.balance()})} : #{receipt.left(${receipt.balance()})})">
+                        Left to pay: $15.00</dd></div>
+            </dl>
+
+            <footer class="doc-foot">
+                <span th:text="#{receipt.note}">This receipt records a payment. It is not a medical document.</span>
+                <span class="doc-powered"><span th:text="#{receipt.powered}">Sent with</span>
+                    <span class="dorak-logo"><img class="logo-light" th:src="@{/img/dorak-logo.png}" alt="Dorak" height="18"><img
+                            class="logo-dark" th:src="@{/img/dorak-logo-dark.png}" alt="Dorak" height="18"></span></span>
+            </footer>
+        </div>
+    </article>
+</main>
+</body>
+</html>

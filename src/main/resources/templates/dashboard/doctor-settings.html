@@ -22,29 +22,120 @@
         </div>
     </header>
 
-    <section class="card">
-        <div class="section-head"><h2 th:text="#{settings.hours}">Weekly hours</h2></div>
+    <!--/*
+      Phones: tabs that jump to each part of this long page, the one in view lit (app.js). A doctor on
+      their own page has only their hours and days off.
+    */-->
+    <nav class="section-tabs" th:aria-label="#{settings.sections}">
+        <a href="#weekly-hours" class="current" th:text="#{settings.hours}">Weekly hours</a>
+        <a href="#days-off" th:text="#{settings.days.short}">Days off</a>
+        <a href="#profile" th:unless="${ownPage}" th:text="#{settings.profile}">Profile</a>
+        <a href="#login" th:unless="${ownPage}" th:text="#{doctor.login}">Login</a>
+    </nav>
+
+    <!--/*
+      The week's hours as bars from 6:00 to 22:00. With app.js: drag on a day to add hours, drag a block
+      to move it, drag its ends to change them (or arrow keys; Shift with them for the end); saved at
+      once. "Copy to..." puts a day's hours on other days. Without it, the form below still adds hours.
+    */-->
+    <section class="card" id="weekly-hours" th:attr="data-hours-url=@{/doctors/{id}/hours(id=${doctor.id})}">
+        <div class="section-head">
+            <h2 th:text="#{settings.hours}">Weekly hours</h2>
+            <span class="hours-hint" th:text="#{settings.hours.drag-hint}">Drag on a day to add hours; drag a block or its ends to change it.</span>
+        </div>
         <div class="hours-week">
             <div class="hours-row" th:each="day : ${week}">
                 <span class="day-name" th:text="${day.day()}">Monday</span>
-                <div class="hours-track">
+                <div class="hours-track" th:attr="data-day=${day.key()}, data-day-name=${day.day()}">
                     <span class="closed-label" th:if="${day.windows().isEmpty()}" th:text="#{settings.hours.closed}">Closed</span>
-                    <div class="hours-seg" th:each="w : ${day.windows()}" th:title="${w.hours()}"
+                    <div class="hours-seg" th:each="w : ${day.windows()}" th:title="${w.hours()}" tabindex="0"
+                         th:attr="data-rule=${w.id()}, data-start=${w.start()}, data-end=${w.end()},
+                                  aria-label=${day.day()} + ' ' + ${w.hours()}"
                          th:style="'inset-inline-start:' + ${w.left()} + '%;width:' + ${w.width()} + '%'">
-                        <span th:text="${w.hours()}" dir="auto">9:00 AM – 1:00 PM</span>
+                        <span class="seg-edge seg-start" aria-hidden="true"></span>
+                        <span class="seg-label" th:text="${w.hours()}" dir="auto">9:00 AM – 1:00 PM</span>
                         <form method="post" th:action="@{/doctors/{id}/hours/{rule}/delete(id=${doctor.id}, rule=${w.id()})}">
                             <button type="submit" th:title="#{action.delete}" th:aria-label="#{action.delete}">
                                 <svg class="icon" aria-hidden="true"><use href="#i-x"/></svg></button>
                         </form>
+                        <span class="seg-edge seg-end" aria-hidden="true"></span>
                     </div>
                 </div>
+                <th:block th:replace="~{this :: copy(${day})}"></th:block>
             </div>
             <div class="hours-scale" aria-hidden="true">
                 <span></span>
                 <div><span>6</span><span>8</span><span>10</span><span>12</span><span>14</span><span>16</span><span>18</span><span>20</span><span>22</span></div>
             </div>
         </div>
-        <form method="post" th:action="@{/doctors/{id}/hours(id=${doctor.id})}" class="inline-form">
+        <!--/*
+          Phones: the same hours as a list of days, too narrow for dragging. Each day's hours are chips
+          that open to change or delete them, and "Add hours" offers the usual shifts in one tap. Plain
+          forms: they work without app.js, which only saves them without leaving the page.
+        */-->
+        <ol class="hours-days">
+            <li class="hd" th:each="day : ${week}" th:classappend="${day.windows().isEmpty()} ? 'closed'">
+                <div class="hd-head">
+                    <strong th:text="${day.day()}">Monday</strong>
+                    <span class="hd-total" th:text="${day.windows().isEmpty()} ? #{settings.hours.closed} : (${day.minutes() % 60 == 0}
+                          ? #{settings.hours.total-h(${day.minutes() / 60})}
+                          : #{settings.hours.total-hm(${day.minutes() / 60}, ${day.minutes() % 60})})">5 h</span>
+                    <th:block th:replace="~{this :: copy(${day})}"></th:block>
+                </div>
+                <div class="hd-bar" aria-hidden="true">
+                    <span th:each="w : ${day.windows()}" th:style="'inset-inline-start:' + ${w.left()} + '%;width:' + ${w.width()} + '%'"></span>
+                </div>
+                <div class="hd-windows">
+                    <details class="hd-edit" th:each="w : ${day.windows()}">
+                        <summary class="hd-chip"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>
+                            <span th:text="${w.hours()}" dir="auto">1:00 PM – 6:00 PM</span>
+                            <svg class="icon hd-pen" aria-hidden="true"><use href="#i-pencil"/></svg></summary>
+                        <form method="post" class="hd-form" data-hours-form
+                              th:action="@{/doctors/{id}/hours/{rule}(id=${doctor.id}, rule=${w.id()})}">
+                            <div class="hd-times">
+                                <label><span th:text="#{settings.from}">From</span>
+                                    <input type="time" name="start" step="900" th:value="${w.start()}" required></label>
+                                <label><span th:text="#{settings.to}">To</span>
+                                    <input type="time" name="end" step="900" th:value="${w.end()}" required></label>
+                            </div>
+                            <div class="hd-actions">
+                                <button type="submit" class="primary"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
+                                    <span th:text="#{action.save}">Save</span></button>
+                                <button type="submit" class="danger" formnovalidate
+                                        th:formaction="@{/doctors/{id}/hours/{rule}/delete(id=${doctor.id}, rule=${w.id()})}">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>
+                                    <span th:text="#{action.delete}">Delete</span></button>
+                            </div>
+                        </form>
+                    </details>
+                    <details class="hd-edit hd-new">
+                        <summary class="hd-add"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>
+                            <span th:text="#{settings.hours.add}">Add hours</span></summary>
+                        <form method="post" class="hd-form" data-hours-form th:action="@{/doctors/{id}/hours(id=${doctor.id})}">
+                            <input type="hidden" name="day" th:value="${day.key()}">
+                            <div class="hd-presets">
+                                <button type="button" class="sm" data-preset="09:00-13:00" th:text="#{settings.hours.morning}">Morning</button>
+                                <button type="button" class="sm" data-preset="14:00-18:00" th:text="#{settings.hours.afternoon}">Afternoon</button>
+                                <button type="button" class="sm" data-preset="16:00-20:00" th:text="#{settings.hours.evening}">Evening</button>
+                                <button type="button" class="sm" data-preset="09:00-17:00" th:text="#{settings.hours.full-day}">Full day</button>
+                            </div>
+                            <div class="hd-times">
+                                <label><span th:text="#{settings.from}">From</span>
+                                    <input type="time" name="start" step="900" value="09:00" required></label>
+                                <label><span th:text="#{settings.to}">To</span>
+                                    <input type="time" name="end" step="900" value="13:00" required></label>
+                            </div>
+                            <div class="hd-actions">
+                                <button type="submit" class="primary"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>
+                                    <span th:text="#{settings.hours.add}">Add hours</span></button>
+                            </div>
+                        </form>
+                    </details>
+                </div>
+            </li>
+        </ol>
+
+        <form method="post" th:action="@{/doctors/{id}/hours(id=${doctor.id})}" class="inline-form hours-add-form">
             <label><span th:text="#{settings.day}">Day</span>
                 <select name="day">
                     <option th:each="d : ${weekdays}" th:value="${d[0]}" th:text="${d[1]}">Monday</option>
@@ -58,7 +149,7 @@
 
     <div class="grid-2">
         <div class="stack" th:unless="${ownPage}">
-        <section class="card">
+        <section class="card" id="profile">
             <div class="section-head"><h2 th:text="#{settings.profile}">Profile</h2></div>
             <form method="post" th:action="@{/doctors/{id}(id=${doctor.id})}" class="stack">
                 <label><span th:text="#{settings.doctor.name}">Name</span>
@@ -91,7 +182,7 @@
         </section>
 
         <!--/* The doctor's own login: they see only their appointments and patients, and change their hours. */-->
-        <section class="card">
+        <section class="card" id="login">
             <div class="section-head">
                 <h2 th:text="#{doctor.login}">Login</h2>
                 <span class="chip chip-CANCELLED" th:if="${login != null and !login.enabled}" th:text="#{operator.login.disabled}">Disabled</span>
@@ -148,9 +239,9 @@
         </section>
         </div>
 
-        <section class="card">
+        <section class="card" id="days-off">
             <div class="section-head"><h2 th:text="#{settings.days}">Days off and special hours</h2></div>
-            <p class="muted" th:if="${daysOff.isEmpty()}" th:text="#{settings.days.none}">None coming up.</p>
+            <p class="empty-note" th:if="${daysOff.isEmpty()}"><svg class="icon" aria-hidden="true"><use href="#i-today"/></svg><span th:text="#{settings.days.none}">None coming up.</span></p>
             <ul class="dayoff-list" th:unless="${daysOff.isEmpty()}">
                 <li class="dayoff" th:each="d : ${daysOff}">
                     <span class="date-chip"><span th:text="${d.month()}">Dec</span><b th:text="${d.dayOfMonth()}">25</b></span>
@@ -164,18 +255,38 @@
                     </form>
                 </li>
             </ul>
-            <form method="post" th:action="@{/doctors/{id}/days(id=${doctor.id})}" class="inline-form">
+            <!--/* The hours only matter for a day that isn't closed: they show when "Closed all day" is unticked (CSS). */-->
+            <form method="post" th:action="@{/doctors/{id}/days(id=${doctor.id})}" class="inline-form dayoff-form">
                 <label><span th:text="#{settings.date}">Date</span>
                     <input type="date" name="date" th:min="${today}" required></label>
                 <label class="check"><input type="checkbox" name="closed" value="true" checked>
                     <span th:text="#{settings.days.closed}">Closed all day</span></label>
-                <label><span th:text="#{settings.from}">From</span><input type="time" name="start"></label>
-                <label><span th:text="#{settings.to}">To</span><input type="time" name="end"></label>
+                <div class="dayoff-hours">
+                    <label><span th:text="#{settings.from}">From</span><input type="time" name="start"></label>
+                    <label><span th:text="#{settings.to}">To</span><input type="time" name="end"></label>
+                </div>
                 <button type="submit"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>
                     <span th:text="#{settings.days.add}">Add a day</span></button>
             </form>
         </section>
     </div>
 </main>
+
+<!--/* "Copy to...": a day's hours onto other days, theirs replaced. */-->
+<details class="hours-copy" th:fragment="copy(day)" th:unless="${day.windows().isEmpty()}">
+    <summary class="button ghost sm icon-btn" th:title="#{settings.hours.copy}" th:aria-label="#{settings.hours.copy}">
+        <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg></summary>
+    <form method="post" th:action="@{/doctors/{id}/hours/copy(id=${doctor.id})}" class="copy-panel" data-hours-form>
+        <input type="hidden" name="from" th:value="${day.key()}">
+        <strong th:text="#{settings.hours.copy-to(${day.day()})}">Copy the hours of Monday to</strong>
+        <div class="copy-days">
+            <label th:each="d : ${weekdays}" th:unless="${d[0] == day.key()}">
+                <input type="checkbox" name="to" th:value="${d[0]}"><span th:text="${d[1]}">Tuesday</span></label>
+        </div>
+        <p class="hint" th:text="#{settings.hours.copy.hint}">Those days' own hours are replaced.</p>
+        <button type="submit" class="primary sm"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg>
+            <span th:text="#{settings.hours.copy.apply}">Copy</span></button>
+    </form>
+</details>
 </body>
 </html>

@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{dashboard/layout :: page(~{::title}, 'operator-patients', ~{::main})}">
 <head><title th:text="#{operator.patients.title}">Patients</title></head>
 <body>
-<main class="container">
+<main class="container" hx-history="false">
     <header class="page-head">
         <div>
             <div class="eyebrow"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg><span th:text="#{operator.title}">Operator</span></div>

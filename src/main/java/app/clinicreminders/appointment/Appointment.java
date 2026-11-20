@@ -114,6 +114,18 @@ public class Appointment {
         this.status = AppointmentStatus.NO_SHOW;
     }
 
+    /**
+     * Undoes arrived or no-show (marked by mistake): back to booked, or confirmed if the patient had
+     * confirmed.
+     */
+    public void unmark() {
+        requireActive();
+        if (status != AppointmentStatus.ARRIVED && status != AppointmentStatus.NO_SHOW) {
+            throw new IllegalStateException("Appointment " + id + " is " + status + ", not arrived or no-show");
+        }
+        this.status = confirmedAt != null ? AppointmentStatus.CONFIRMED : AppointmentStatus.BOOKED;
+    }
+
     /** @return false if it was already confirmed */
     public boolean confirm(Instant now) {
         if (status == AppointmentStatus.CONFIRMED) {

@@ -26,9 +26,12 @@ class DashboardModel {
     private final ClinicRepository clinics;
     private final ConversationRepository conversations;
     private final MessageLogRepository logs;
+    private final BillingViews billing;
     private final Clock clock;
 
-    DashboardModel(ClinicRepository clinics, ConversationRepository conversations, MessageLogRepository logs, Clock clock) {
+    DashboardModel(ClinicRepository clinics, ConversationRepository conversations, MessageLogRepository logs,
+                   BillingViews billing, Clock clock) {
+        this.billing = billing;
         this.clinics = clinics;
         this.conversations = conversations;
         this.logs = logs;
@@ -48,6 +51,8 @@ class DashboardModel {
             if (staff.doctorId() != null) {
                 return; // Needs attention is the front desk's
             }
+            // A payment for the service near or late: a bar across the page.
+            model.addAttribute("billingNotice", billing.notice(staff, language));
             // Counted in the database: this runs on every page.
             model.addAttribute("attentionCount", conversations.countByClinicIdAndNeedsHumanTrue(clinicId)
                     + logs.countFailedSince(clinicId, clock.instant().minus(AttentionController.FAILED_SENDS_WINDOW)));
@@ -65,6 +70,6 @@ class DashboardModel {
             return "dashboard/today-list :: empty";
         }
         redirect.addFlashAttribute("error", "error.not-allowed");
-        return "redirect:/";
+        return "redirect:/app/";
     }
 }

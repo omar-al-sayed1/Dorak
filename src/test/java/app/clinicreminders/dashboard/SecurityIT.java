@@ -54,7 +54,7 @@ class SecurityIT extends DashboardTest {
         mvc.get().uri("/today/list?date=2026-10-14").header("HX-Request", "true").session(session).exchange();
 
         assertThat(mvc.post().uri("/login").session(session).param("username", "rana.sec").param("password", "s3cret-pass")
-                .with(csrf())).headers().hasValue("Location", "/");
+                .with(csrf())).headers().hasValue("Location", "/app/");
     }
 
     @Test
@@ -77,14 +77,14 @@ class SecurityIT extends DashboardTest {
         mvc.get().uri("/apple-touch-icon.png").header("Accept", "image/avif,image/webp,*/*").session(session).exchange();
 
         assertThat(mvc.post().uri("/login").session(session).param("username", "rana.sec").param("password", "s3cret-pass")
-                .with(csrf())).headers().hasValue("Location", "/");
+                .with(csrf())).headers().hasValue("Location", "/app/");
     }
 
     @Test
     void loggingInIgnoresUsernameCaseAndOpensToday() {
         assertThat(mvc.post().uri("/login").param("username", "Rana.Sec").param("password", "s3cret-pass").with(csrf()))
                 .hasStatus3xxRedirection()
-                .headers().hasValue("Location", "/");
+                .headers().hasValue("Location", "/app/");
     }
 
     @Test

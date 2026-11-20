@@ -2,6 +2,7 @@ package app.clinicreminders.api;
 
 import java.util.Map;
 
+import app.clinicreminders.balance.BalanceProblem;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -19,5 +20,12 @@ class ApiErrors {
     @ResponseStatus(HttpStatus.CONFLICT)
     Map<String, String> notAllowed() {
         return Map.of("error", "error.not-allowed");
+    }
+
+    /** A money entry that can't be made (a negative fee, lira without a rate...): its text key. */
+    @ExceptionHandler(BalanceProblem.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    Map<String, String> balance(BalanceProblem problem) {
+        return Map.of("error", problem.getMessage());
     }
 }

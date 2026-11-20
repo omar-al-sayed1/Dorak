@@ -37,6 +37,16 @@ class AccountController {
         return "dashboard/login";
     }
 
+    /** The terms of service, open to everyone; {@code ?lang=} as on the sign-in page. */
+    @GetMapping("/terms")
+    String terms(@RequestParam(required = false) String lang, HttpServletRequest request) {
+        if (lang != null) {
+            StaffLocaleResolver.remember(request, lang.equals("en") ? Language.EN : Language.AR);
+            return "redirect:/terms";
+        }
+        return "dashboard/terms";
+    }
+
     /** Switches the dashboard language for this session and saves it for the user's next login. */
     @PostMapping("/language")
     String language(@RequestParam String lang, @AuthenticationPrincipal StaffPrincipal staff, HttpServletRequest request) {

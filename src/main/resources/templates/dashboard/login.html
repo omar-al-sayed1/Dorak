@@ -4,9 +4,9 @@
 <body>
 <main class="auth">
     <section class="auth-brand">
+        <!--/* The panel is dark in both themes: the logo with light lettering. */-->
         <div class="auth-logo">
-            <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-mark"/></svg></span>
-            <span th:text="#{app.name}">Clinic Reminders</span>
+            <img th:src="@{/img/dorak-logo-dark.png}" th:alt="#{app.name}" width="180" height="48">
         </div>
 
         <div class="auth-pitch">
@@ -18,20 +18,28 @@
             </ul>
         </div>
 
-        <!--/* A patient's phone: the reminder, the tap on Confirm and the clinic's thanks. Decorative. */-->
-        <div class="device" aria-hidden="true">
-            <div class="device-screen">
-                <div class="device-bar">
-                    <span class="avatar sm">DK</span>
-                    <div><strong th:text="#{login.chat.clinic}">Dr. Khoury's clinic</strong><span th:text="#{login.chat.online}">online</span></div>
-                </div>
-                <div class="chat">
-                    <div class="bubble in"><span th:text="#{login.chat.reminder}">Reminder</span><time>9:00</time></div>
-                    <div class="bubble-buttons"><span th:text="#{login.chat.confirm}">Confirm</span><span th:text="#{login.chat.cancel}">Cancel</span></div>
-                    <div class="bubble out"><span th:text="#{login.chat.confirm}">Confirm</span><time>9:02 ✓✓</time></div>
-                    <div class="bubble in"><span th:text="#{login.chat.thanks}">See you tomorrow!</span><time>9:02</time></div>
+        <!--/*
+          A patient's phone, decorative: the reminder arrives, Confirm is tapped, the clinic thanks them
+          (app.css plays it once as the page opens); two labels float beside it.
+        */-->
+        <div class="device-wrap" aria-hidden="true">
+            <div class="device">
+                <div class="device-screen">
+                    <div class="device-bar">
+                        <span class="avatar sm">DK</span>
+                        <div><strong th:text="#{login.chat.clinic}">Dr. Khoury's clinic</strong><span th:text="#{login.chat.online}">online</span></div>
+                    </div>
+                    <div class="chat">
+                        <div class="bubble in"><span th:text="#{login.chat.reminder}">Reminder</span><time>9:00</time></div>
+                        <div class="bubble-buttons"><span th:text="#{login.chat.confirm}">Confirm</span><span th:text="#{login.chat.cancel}">Cancel</span></div>
+                        <div class="bubble out"><span th:text="#{login.chat.confirm}">Confirm</span><time>9:02 ✓✓</time></div>
+                        <div class="bubble in typing"><i></i><i></i><i></i></div>
+                        <div class="bubble in"><span th:text="#{login.chat.thanks}">See you tomorrow!</span><time>9:02</time></div>
+                    </div>
                 </div>
             </div>
+            <span class="auth-chip chip-one"><svg class="icon"><use href="#i-chat"/></svg><span th:text="#{source.WHATSAPP}">WhatsApp</span></span>
+            <span class="auth-chip chip-two"><svg class="icon"><use href="#i-check-circle"/></svg><span th:text="#{status.CONFIRMED}">Confirmed</span></span>
         </div>
 
         <p class="auth-note" th:text="#{app.tagline}">WhatsApp reminders and bookings for clinics in Lebanon</p>
@@ -39,9 +47,12 @@
 
     <section class="auth-main">
         <div class="auth-card">
+            <img class="auth-mark" th:src="@{/img/dorak-mark.png}" alt="" width="52" height="52">
             <h1 th:text="#{login.welcome}">Welcome back</h1>
             <p class="lead" th:text="#{login.subtitle}">Sign in to see today's appointments.</p>
 
+            <p class="alert" role="alert" th:if="${param.locked}">
+                <svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span th:text="#{login.locked}">Too many wrong passwords.</span></p>
             <p class="alert" role="alert" th:if="${param.error}">
                 <svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><span th:text="#{login.error}">Wrong username or password.</span></p>
             <p class="notice" role="status" th:if="${param.logout}">
@@ -52,20 +63,28 @@
                     <span th:text="#{login.username}">Username</span>
                     <span class="field-icon">
                         <svg class="icon" aria-hidden="true"><use href="#i-user"/></svg>
-                        <input type="text" name="username" autocomplete="username" required autofocus dir="ltr" spellcheck="false">
+                        <input type="text" name="username" autocomplete="username" required autofocus dir="ltr" spellcheck="false"
+                               autocapitalize="none">
                     </span>
                 </label>
                 <label>
                     <span th:text="#{login.password}">Password</span>
                     <span class="field-icon">
                         <svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>
-                        <input type="password" id="password" name="password" autocomplete="current-password" required dir="ltr">
+                        <input type="password" id="password" name="password" autocomplete="current-password" required dir="ltr" data-caps-watch>
                         <button type="button" class="reveal" data-reveal="password" aria-pressed="false" th:aria-label="#{login.show-password}">
                             <svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
                     </span>
+                    <!--/* Shown by app.js while Caps Lock is on in the password field. */-->
+                    <span class="caps-hint" data-caps-hint hidden>
+                        <svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><span th:text="#{login.caps-lock}">Caps Lock is on.</span></span>
                 </label>
-                <button type="submit" class="primary" th:text="#{login.submit}">Sign in</button>
+                <button type="submit" class="primary"><span th:text="#{login.submit}">Sign in</span>
+                    <svg class="icon flip-rtl go" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
             </form>
+
+            <p class="auth-terms"><span th:text="#{login.terms}">By signing in you accept the</span>
+                <a th:href="@{/terms}" th:text="#{terms.title}">Terms of service</a>.</p>
 
             <div class="auth-foot">
                 <span th:text="#{login.help}">Forgot your password? Ask your operator.</span>

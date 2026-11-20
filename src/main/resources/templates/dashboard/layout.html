@@ -8,10 +8,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#0e6f68">
-    <title th:replace="${title}">Clinic Reminders</title>
-    <!--/* Before the stylesheet, so a saved theme or a collapsed sidebar never flashes. */-->
+    <title th:replace="${title}">Dorak</title>
+    <link rel="icon" type="image/png" th:href="@{/favicon.png}">
+    <!--/* Before the stylesheet, so a saved theme or a collapsed sidebar never flashes. data-enter: the page's parts
+           rise into place as it opens (app.css); app.js takes it off again, so nothing swapped in later replays. */-->
     <script>try { var t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t;
-        if (localStorage.getItem("sidebar") === "collapsed") document.documentElement.dataset.sidebar = "collapsed"; } catch (e) {}</script>
+        if (localStorage.getItem("sidebar") === "collapsed") document.documentElement.dataset.sidebar = "collapsed"; } catch (e) {}
+        document.documentElement.setAttribute("data-enter", "");</script>
     <link rel="preload" th:href="@{/fonts/ibm-plex-sans-arabic-arabic-400-normal.woff2}" as="font" type="font/woff2" crossorigin>
     <link rel="preload" th:href="@{/fonts/ibm-plex-sans-arabic-latin-400-normal.woff2}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" th:href="@{/css/app.css}">
@@ -25,30 +28,35 @@
 
 <div class="shell" th:if="${staff != null}">
     <aside class="sidebar" id="sidebar">
-        <a class="brand" th:href="@{/}" th:title="${clinicName} ?: #{app.name}">
-            <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-mark"/></svg></span>
-            <span class="brand-text">
-                <span class="brand-name" th:text="${clinicName} ?: #{app.name}">Dr. Demo</span>
-                <span class="brand-sub" th:text="#{app.name}">Clinic Reminders</span>
-            </span>
-        </a>
-        <!--/* Collapses the sidebar to a rail of icons (computers only; app.js remembers the choice). */-->
-        <button type="button" class="side-toggle" data-sidebar-toggle data-key="[" aria-controls="sidebar" aria-expanded="true"
-                th:attr="data-label-collapse=#{nav.collapse},data-label-expand=#{nav.expand}"
-                aria-keyshortcuts="[" th:title="#{nav.collapse} + ' ([)'" th:aria-label="#{nav.collapse}">
-            <svg class="icon flip-rtl" aria-hidden="true"><use href="#i-chevron-left"/></svg></button>
+        <div class="side-head">
+            <a class="brand" th:href="${staff.clinicId() != null} ? @{/app/} : @{/operator}" th:title="${clinicName} ?: #{app.name}">
+                <img class="brand-logo" th:src="@{/img/dorak-mark.png}" alt="" width="40" height="40">
+                <span class="brand-text">
+                    <span class="brand-name" th:text="${clinicName} ?: #{app.name}">Dr. Demo</span>
+                    <span class="brand-sub" th:text="#{app.name}">Dorak</span>
+                </span>
+            </a>
+            <!--/* Collapses the sidebar to a rail of icons (computers only; app.js remembers the choice). Shortcut: [ */-->
+            <button type="button" class="side-toggle" data-sidebar-toggle data-key="[" aria-controls="sidebar" aria-expanded="true"
+                    th:attr="data-label-collapse=#{nav.collapse},data-label-expand=#{nav.expand},data-tip=#{nav.collapse}"
+                    aria-keyshortcuts="[" th:aria-label="#{nav.collapse}">
+                <svg class="icon flip-rtl" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/><path class="toggle-arrow" d="M16 9.5l-2.5 2.5 2.5 2.5"/></svg></button>
+        </div>
 
         <nav class="side-nav" th:if="${staff.clinicId() != null}" th:aria-label="#{app.name}">
             <span class="nav-label" th:text="#{nav.section}">Clinic</span>
-            <a th:href="@{/}" th:classappend="${active == 'today'} ? 'active'" th:attr="aria-current=${active == 'today'} ? 'page'">
+            <a th:href="@{/app/}" th:classappend="${active == 'today'} ? 'active'" th:attr="aria-current=${active == 'today'} ? 'page'">
                 <svg class="icon" aria-hidden="true"><use href="#i-today"/></svg><span th:text="#{nav.today}">Today</span></a>
             <a th:href="@{/week}" th:classappend="${active == 'week'} ? 'active'" th:attr="aria-current=${active == 'week'} ? 'page'">
                 <svg class="icon" aria-hidden="true"><use href="#i-week"/></svg><span th:text="#{nav.week}">Week</span></a>
-            <a th:href="@{/patients}" th:classappend="${active == 'patients'} ? 'active'" th:attr="aria-current=${active == 'patients'} ? 'page'">
+            <a th:href="@{/app/patients}" th:classappend="${active == 'patients'} ? 'active'" th:attr="aria-current=${active == 'patients'} ? 'page'">
                 <svg class="icon" aria-hidden="true"><use href="#i-users"/></svg><span th:text="#{nav.patients}">Patients</span></a>
             <!--/* Phones: in the account menu instead, so the bottom bar keeps five items at most. */-->
             <a class="nav-report" th:href="@{/report}" th:classappend="${active == 'report'} ? 'active'" th:attr="aria-current=${active == 'report'} ? 'page'">
                 <svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg><span th:text="#{nav.report}">Report</span></a>
+            <!--/* Balance is in the React dashboard only, and the front desk's. */-->
+            <a class="nav-report" th:if="${staff.doctorId() == null}" th:href="@{/app/balance}">
+                <svg class="icon" aria-hidden="true"><use href="#i-wallet"/></svg><span th:text="#{nav.balance}">Balance</span></a>
             <!--/* A doctor's login: their own hours instead of the doctors, the clinic's settings and the inbox. */-->
             <a th:if="${staff.doctorId() != null}" th:href="@{/doctors/{id}(id=${staff.doctorId()})}"
                th:classappend="${active == 'doctors'} ? 'active'" th:attr="aria-current=${active == 'doctors'} ? 'page'">
@@ -70,6 +78,9 @@
             <a th:href="@{/operator/report}" th:classappend="${active == 'operator-report'} ? 'active'"
                th:attr="aria-current=${active == 'operator-report'} ? 'page'">
                 <svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg><span th:text="#{nav.report}">Report</span></a>
+            <a th:href="@{/operator/billing}" th:classappend="${active == 'operator-billing'} ? 'active'"
+               th:attr="aria-current=${active == 'operator-billing'} ? 'page'">
+                <svg class="icon" aria-hidden="true"><use href="#i-wallet"/></svg><span th:text="#{nav.billing}">Billing</span></a>
             <a th:href="@{/operator/rates}" th:classappend="${active == 'operator-rates'} ? 'active'"
                th:attr="aria-current=${active == 'operator-rates'} ? 'page'">
                 <svg class="icon" aria-hidden="true"><use href="#i-message"/></svg><span th:text="#{nav.rates}">Message rates</span></a>
@@ -100,6 +111,8 @@
                             <a class="menu-report" th:href="@{/report}" th:classappend="${active == 'report'} ? 'active'"
                                th:attr="aria-current=${active == 'report'} ? 'page'">
                                 <svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg><span th:text="#{nav.report}">Report</span></a>
+                            <a class="menu-report" th:if="${staff.doctorId() == null}" th:href="@{/app/balance}">
+                                <svg class="icon" aria-hidden="true"><use href="#i-wallet"/></svg><span th:text="#{nav.balance}">Balance</span></a>
                             <hr class="menu-attention-rule">
                         </th:block>
                         <div class="menu-title" th:text="#{theme.title}">Theme</div>
@@ -117,9 +130,9 @@
                                 <svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg>
                                 <span th:text="#{'language.switch.' + ${otherLang}}">English</span></button>
                         </form>
+                        <a th:if="${staff.role().name() == 'OWNER'}" th:href="@{/billing}" th:classappend="${active == 'billing'} ? 'active'">
+                            <svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg><span th:text="#{nav.billing}">Billing</span></a>
                         <a th:href="@{/account/password}"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg><span th:text="#{nav.password}">Password</span></a>
-                        <!--/* The React dashboard, while it replaces these pages one by one. */-->
-                        <a th:if="${staff.clinicId() != null}" th:href="@{/app/}"><svg class="icon" aria-hidden="true"><use href="#i-sparkle"/></svg><span th:text="#{nav.preview}">New dashboard (preview)</span></a>
                         <hr>
                         <form method="post" th:action="@{/logout}">
                             <button type="submit" class="menu-item"><svg class="icon flip-rtl" aria-hidden="true"><use href="#i-logout"/></svg>
@@ -140,6 +153,15 @@
     </aside>
 
     <div class="content">
+        <!--/* The clinic's payment for the service is near or late (BillingViews): the owner's goes to Billing. */-->
+        <a class="bill-banner" th:if="${billingNotice != null}" th:classappend="'is-' + ${billingNotice.status()}"
+           th:href="${billingNotice.owner()} ? @{/billing} : null" role="status">
+            <svg class="icon" aria-hidden="true"><use href="#i-wallet"/></svg>
+            <span class="grow" th:text="#{'billing.banner.' + ${billingNotice.status()}(${billingNotice.dueOn()}, ${billingNotice.days() + ''})}">
+                The Dorak subscription is due on 1 December 2026.</span>
+            <span class="go" th:if="${billingNotice.owner()}"><span th:text="#{billing.banner.link}">Billing</span>
+                <svg class="icon flip-rtl" aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+        </a>
         <main th:replace="${content}">content</main>
         <!--/* Shown at once while another page opens (app.js); that page then replaces all of this. */-->
         <div class="page-skeleton" th:insert="~{dashboard/skeletons :: page}"></div>

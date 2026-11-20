@@ -5,14 +5,15 @@
 <main class="container">
     <header class="page-head">
         <div>
-            <div class="eyebrow"><svg class="icon" aria-hidden="true"><use href="#i-stethoscope"/></svg><span th:text="#{nav.doctors}">Doctors</span></div>
             <h1 th:text="#{nav.doctors}">Doctors</h1>
+            <p class="muted" th:text="#{doctors.intro}">Who sees patients here, their weekly hours and days off, and their logins.</p>
         </div>
     </header>
 
     <div class="grid-2">
         <section class="card">
-            <div class="section-head"><h2 th:text="#{settings.doctors}">Doctors</h2><span class="count" th:text="${doctors.size()}">2</span></div>
+            <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-stethoscope"/></svg>
+                <h2 th:text="#{settings.doctors}">Doctors</h2><span class="count" th:text="${doctors.size()}">2</span></div>
             <p class="muted" th:if="${doctors.isEmpty()}" th:text="#{today.no-doctors}">No doctors yet.</p>
             <ul class="doctor-cards">
                 <li th:each="r : ${doctors}">
@@ -37,7 +38,8 @@
             </ul>
         </section>
         <section class="card">
-            <div class="section-head"><h2 th:text="#{settings.doctor.add}">Add a doctor</h2></div>
+            <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>
+                <h2 th:text="#{settings.doctor.add}">Add a doctor</h2></div>
             <form method="post" th:action="@{/doctors}" class="stack add-doctor" autocomplete="off">
                 <label><span th:text="#{settings.doctor.name}">Name</span>
                     <input type="text" name="displayName" th:value="${draftName}" required></label>

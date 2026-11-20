@@ -71,6 +71,7 @@ public record DoctorSchedule(
         private final Duration slotLength;
         private final Map<DayOfWeek, List<TimeWindow>> weeklyHours = new EnumMap<>(DayOfWeek.class);
         private final Map<LocalDate, List<TimeWindow>> exceptions = new HashMap<>();
+        private final Map<LocalDate, List<TimeWindow>> extras = new HashMap<>();
 
         private Builder(ZoneId zone, Duration slotLength) {
             this.zone = zone;
@@ -92,10 +93,27 @@ public record DoctorSchedule(
             return this;
         }
 
+        /**
+         * One extra slot on {@code date} at {@code start}, one slot long, on top of that day's hours
+         * (weekly or special; also on a closed day).
+         */
+        public Builder extraOn(LocalDate date, LocalTime start) {
+            extras.computeIfAbsent(date, d -> new ArrayList<>()).add(new TimeWindow(start, start.plus(slotLength)));
+            return this;
+        }
+
         public DoctorSchedule build() {
             Map<DayOfWeek, List<TimeWindow>> weekly = new EnumMap<>(DayOfWeek.class);
             weeklyHours.forEach((day, windows) -> weekly.put(day, List.copyOf(windows)));
-            return new DoctorSchedule(zone, slotLength, weekly, exceptions);
+            Map<LocalDate, List<TimeWindow>> days = new HashMap<>(exceptions);
+            extras.forEach((date, added) -> {
+                List<TimeWindow> windows = new ArrayList<>(days.containsKey(date)
+                        ? days.get(date)
+                        : weekly.getOrDefault(date.getDayOfWeek(), List.of()));
+                windows.addAll(added);
+                days.put(date, List.copyOf(windows));
+            });
+            return new DoctorSchedule(zone, slotLength, weekly, days);
         }
     }
 }

@@ -111,6 +111,11 @@ public class AppointmentService {
         find(clinicId, appointmentId).markNoShow(clock.instant());
     }
 
+    /** Undo of arrived or no-show: back to booked (or confirmed). */
+    public void unmark(long clinicId, long appointmentId) {
+        find(clinicId, appointmentId).unmark();
+    }
+
     private Appointment find(long clinicId, long appointmentId) {
         return appointments.findByIdAndClinicId(appointmentId, clinicId)
                 .orElseThrow(() -> new NotFoundException("Appointment", appointmentId));

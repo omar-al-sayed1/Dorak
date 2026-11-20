@@ -3,6 +3,7 @@ package app.clinicreminders.dashboard;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
 import java.time.DayOfWeek;
 import java.time.Duration;
@@ -82,7 +83,7 @@ class DoctorLoginsIT extends DashboardTest {
         assertThat(nassar.getDisplayName()).isEqualTo("Dr. Nassar");
         assertThat(login.getRole()).isEqualTo(StaffRole.DOCTOR);
         assertThat(login.getClinicId()).isEqualTo(clinic.getId());
-        assertThat(logIn("dr.nassar", "long-enough-1")).isEqualTo("/");
+        assertThat(logIn("dr.nassar", "long-enough-1")).isEqualTo("/app/");
     }
 
     @Test
@@ -109,14 +110,14 @@ class DoctorLoginsIT extends DashboardTest {
 
         post(secretary, "/doctors/{id}/login", saab.getId()).param("username", "dr.saab").param("password", "first-password")
                 .exchange();
-        assertThat(logIn("dr.saab", "first-password")).isEqualTo("/");
+        assertThat(logIn("dr.saab", "first-password")).isEqualTo("/app/");
         assertThat(get(secretary, "/doctors/{id}", saab.getId())).bodyText().contains("dr.saab", "Set the password")
                 .doesNotContain("No login yet.");
 
         assertThat(post(secretary, "/doctors/{id}/login/password", saab.getId()).param("password", "second-password"))
                 .flash().containsEntry("notice", "notice.doctor-password-set");
         assertThat(logIn("dr.saab", "first-password")).isEqualTo("/login?error");
-        assertThat(logIn("dr.saab", "second-password")).isEqualTo("/");
+        assertThat(logIn("dr.saab", "second-password")).isEqualTo("/app/");
 
         post(secretary, "/doctors/{id}/login/enabled", saab.getId()).param("enabled", "false").exchange();
         assertThat(logIn("dr.saab", "second-password")).isEqualTo("/login?error");
@@ -156,8 +157,8 @@ class DoctorLoginsIT extends DashboardTest {
                 .contains("Dr. Khoury", "Rana Haddad").doesNotContain("Dr. Saab", "Karim Saleh");
         assertThat(get(khouryLogin, "/week?doctorId={id}&start=2026-10-21", saab.getId())).hasStatusOk().bodyText()
                 .as("another doctor's week falls back to their own").contains("Rana Haddad").doesNotContain("Karim Saleh", "Dr. Saab");
-        assertThat(get(khouryLogin, "/patients")).bodyText().contains("Rana Haddad").doesNotContain("Karim Saleh");
-        assertThat(get(khouryLogin, "/patients?q=karim")).bodyText().doesNotContain("Karim Saleh");
+        assertThat(get(khouryLogin, "/api/patients")).bodyText().contains("Rana Haddad").doesNotContain("Karim Saleh");
+        assertThat(get(khouryLogin, "/api/patients?q=karim")).bodyText().doesNotContain("Karim Saleh");
         assertThat(get(khouryLogin, "/appointments/patients")).bodyText().contains("Rana Haddad").doesNotContain("Karim Saleh");
     }
 
@@ -179,8 +180,7 @@ class DoctorLoginsIT extends DashboardTest {
         assertThat(post(khouryLogin, "/doctors/{id}", khoury.getId()).param("displayName", "Renamed")).hasStatus(403);
         assertThat(post(khouryLogin, "/doctors/{id}/login/password", khoury.getId()).param("password", "long-enough-1"))
                 .hasStatus(403);
-        assertThat(post(khouryLogin, "/patients/{id}/delete", rana.getId())).hasStatus(403);
-        assertThat(get(khouryLogin, "/patients")).bodyText().doesNotContain("/delete");
+        assertThat(mvc.delete().uri("/api/patients/{id}", rana.getId()).with(user(khouryLogin)).with(csrf())).hasStatus(403);
     }
 
     // --- What the doctor can change ---

@@ -3,9 +3,11 @@ package app.clinicreminders.dashboard;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 
+import app.clinicreminders.billing.Billing;
 import app.clinicreminders.clinic.Clinic;
 import app.clinicreminders.clinic.ClinicRepository;
 import app.clinicreminders.common.Language;
@@ -41,6 +43,9 @@ class OperatorPagesIT extends DashboardTest {
     @Autowired
     TokenCipher tokenCipher;
 
+    @Autowired
+    Billing billing;
+
     private StaffPrincipal operator;
     private Clinic clinic;
 
@@ -62,6 +67,87 @@ class OperatorPagesIT extends DashboardTest {
     }
 
     @Test
+    void theClinicsAreSearchedByNameAndFiltered() {
+        Clinic haddad = data.connectedClinic("Dr. Haddad", "pn-h");
+        data.clinic("Dr. Saab");
+        billing.save(haddad.getId(), 1, LocalDate.of(2020, 1, 1), null, null, null, null, null, null, clock.instant());
+        billing.save(clinic.getId(), 1, LocalDate.of(2099, 1, 1), null, null, null, null, null, null, clock.instant());
+
+        assertThat(get(operator, "/operator")).hasStatusOk().bodyText()
+                .contains("Clinics: 3 of 3", "data-dialog-open=\"add-clinic\"", "name=\"q\"", "Paused", "Trial");
+        assertThat(get(operator, "/operator?q=hadd")).bodyText().contains("Clinics: 1 of 3", ">Dr. Haddad<")
+                .doesNotContain(">Clinique Zahle<", ">Dr. Saab<");
+        assertThat(get(operator, "/operator?whatsapp=not-connected")).bodyText().contains(">Clinique Zahle<", ">Dr. Saab<")
+                .doesNotContain(">Dr. Haddad<");
+        assertThat(get(operator, "/operator?whatsapp=connected")).bodyText().contains(">Dr. Haddad<").doesNotContain(">Dr. Saab<");
+        assertThat(get(operator, "/operator?billed=late")).bodyText().contains(">Dr. Haddad<").doesNotContain(">Clinique Zahle<", ">Dr. Saab<");
+        assertThat(get(operator, "/operator?billed=paying")).as("Dr. Saab was given a subscription: every clinic is billed")
+                .bodyText().contains(">Clinique Zahle<", ">Dr. Saab<").doesNotContain(">Dr. Haddad<", "Not billed yet");
+
+        // Quick filters: whose subscription ends soon, who never paid, who has gone quiet.
+        billing.save(clinic.getId(), 1, LocalDate.of(2026, 10, 18), null, null, null, null, null, null, clock.instant());
+        Doctor doctor = data.doctor(haddad, "Dr. Haddad", 30);
+        data.appointment(doctor, data.patient(haddad), clock.instant().plusSeconds(86_400), java.time.Duration.ofMinutes(30));
+        billing.record(haddad.getId(), 1, null, app.clinicreminders.billing.SubscriptionPayment.Method.CASH, null,
+                LocalDate.of(2026, 10, 14), "omar", clock.instant());
+        assertThat(get(operator, "/operator")).bodyText().contains("Subscription ends soon", "Never paid", "Gone quiet");
+        assertThat(get(operator, "/operator?soon=true")).as("due in four days").bodyText()
+                .contains("Clinics: 1 of 3", ">Clinique Zahle<").doesNotContain(">Dr. Haddad<", ">Dr. Saab<");
+        assertThat(get(operator, "/operator?unpaid=true")).bodyText().contains("Clinics: 2 of 3").doesNotContain(">Dr. Haddad<");
+        assertThat(get(operator, "/operator?quiet=true")).as("only Dr. Haddad took a booking lately").bodyText()
+                .contains("Clinics: 2 of 3", ">Clinique Zahle<", ">Dr. Saab<").doesNotContain(">Dr. Haddad<");
+        assertThat(get(operator, "/operator?quiet=true&soon=true")).bodyText().contains("Clinics: 1 of 3", ">Clinique Zahle<");
+        assertThat(get(operator, "/operator?setup=done")).bodyText().contains("Clinics: 0 of 3", "No clinic matches.");
+        assertThat(get(operator, "/operator?setup=unfinished&q=SAAB")).bodyText().contains("Clinics: 1 of 3", ">Dr. Saab<");
+    }
+
+    @Test
+    void aClinicIsDeletedOnlyOnceTheWordIsTypedAndCanBeBroughtBackForAFewMinutes() {
+        Clinic other = data.clinic("Dr. Saab");
+        StaffPrincipal owner = staffOf(clinic, StaffRole.OWNER, Language.EN);
+        Doctor doctor = data.doctor(clinic, "Dr. Khoury", 30);
+        data.appointment(doctor, data.patient(clinic), clock.instant().plusSeconds(86_400), java.time.Duration.ofMinutes(30));
+        String page = "/operator/clinics/" + clinic.getId();
+
+        assertThat(get(operator, page)).hasStatusOk().bodyText()
+                .contains("Delete this clinic", "data-type-to-confirm=\"delete\"", "data-confirm=\"Delete Clinique Zahle and everything in it?\"", "Logins: 1", "Doctors: 1", "Patients: 1", "Appointments: 1");
+        assertThat(post(owner, page + "/delete").param("confirm", "delete")).as("the operator's only").hasStatus(403);
+        assertThat(post(operator, page + "/delete")).hasStatus3xxRedirection().hasRedirectedUrl(page);
+        assertThat(post(operator, page + "/delete").param("confirm", "yes")).hasStatus3xxRedirection().hasRedirectedUrl(page);
+        assertThat(clinics.findById(clinic.getId())).as("nothing typed, or the wrong word: still there").isPresent();
+
+        assertThat(post(operator, page + "/delete").param("confirm", " Delete ")).hasStatus3xxRedirection().hasRedirectedUrl("/operator");
+        assertThat(clinics.findById(clinic.getId())).isEmpty();
+        assertThat(clinics.findById(other.getId())).isPresent();
+        assertThat(jdbc.queryForObject("select count(*) from appointment", Integer.class)).isZero();
+        assertThat(users.findByUsernameIgnoreCase("omar")).as("the operator's own login stays").isPresent();
+        assertThat(get(operator, page)).hasStatus(404);
+        assertThat(post(operator, page + "/delete").param("confirm", "delete")).hasStatus(404);
+        assertThat(get(operator, "/operator/patients")).as("its patients went with it").hasStatusOk().bodyText()
+                .doesNotContain("Clinique Zahle");
+        assertThat(jdbc.queryForObject("select count(*) from patient", Integer.class)).isZero();
+
+        // The clinics page offers to undo it, and Undo brings everything back.
+        java.util.UUID token = jdbc.queryForObject("select token from deleted_clinic", java.util.UUID.class);
+        assertThat(get(operator, "/operator")).bodyText()
+                .contains("Clinique Zahle was deleted.", "/operator/clinics/restore/" + token, ">Undo<");
+        assertThat(post(owner, "/operator/clinics/restore/" + token)).hasStatus(403);
+        assertThat(post(operator, "/operator/clinics/restore/" + token)).hasStatus3xxRedirection().hasRedirectedUrl("/operator");
+        assertThat(clinics.findById(clinic.getId()).orElseThrow().getName()).isEqualTo("Clinique Zahle");
+        assertThat(jdbc.queryForObject("select count(*) from appointment where doctor_id = ?", Integer.class, doctor.getId())).isEqualTo(1);
+        assertThat(get(operator, page)).hasStatusOk().bodyText().contains("Logins: 1", "Patients: 1");
+        assertThat(get(operator, "/operator")).bodyText().contains(">Clinique Zahle<").doesNotContain("was deleted");
+
+        // Deleted again and left: once the minutes are over there is nothing to undo.
+        assertThat(post(operator, page + "/delete").param("confirm", "delete")).hasStatus3xxRedirection();
+        java.util.UUID second = jdbc.queryForObject("select token from deleted_clinic", java.util.UUID.class);
+        clock.setInstant(clock.instant().plus(java.time.Duration.ofMinutes(11)));
+        assertThat(get(operator, "/operator")).bodyText().doesNotContain("was deleted", ">Undo<");
+        assertThat(post(operator, "/operator/clinics/restore/" + second)).hasStatus3xxRedirection();
+        assertThat(clinics.findById(clinic.getId())).isEmpty();
+    }
+
+    @Test
     void createsAClinicAndOpensIt() {
         MvcTestResult result = post(operator, "/operator/clinics").param("name", " Dr. Saab ")
                 .param("timezone", "Asia/Beirut").param("defaultLanguage", "en").exchange();
@@ -72,6 +158,8 @@ class OperatorPagesIT extends DashboardTest {
                 .hasValue("Location", "/operator/clinics/" + created.getId());
         assertThat(created.getDefaultLanguage()).isEqualTo(Language.EN);
         assertThat(created.getWaPhoneNumberId()).isNull();
+        assertThat(billing.subscription(created.getId())).as("billed from the start, on the general plan")
+                .hasValueSatisfying(subscription -> assertThat(subscription.hasOwnTerms()).isFalse());
         assertThat(get(operator, "/operator/clinics/{id}", created.getId())).hasStatusOk().bodyText()
                 .contains("Dr. Saab", "No token saved.", "No logins yet.");
     }
@@ -230,7 +318,7 @@ class OperatorPagesIT extends DashboardTest {
         NewPassword password = (NewPassword) result.getMvcResult().getFlashMap().get("newPassword");
         assertThat(password.username()).isEqualTo("rana.sec");
         assertThat(password.password()).matches("[a-zA-Z2-9]{4}(-[a-zA-Z2-9]{4}){3}");
-        assertThat(logIn("rana.sec", password.password())).isEqualTo("/");
+        assertThat(logIn("rana.sec", password.password())).isEqualTo("/app/");
         StaffUser saved = users.findByUsernameIgnoreCase("rana.sec").orElseThrow();
         assertThat(saved.getClinicId()).isEqualTo(clinic.getId());
         assertThat(saved.getRole()).isEqualTo(StaffRole.SECRETARY);
@@ -260,12 +348,12 @@ class OperatorPagesIT extends DashboardTest {
         NewPassword second = (NewPassword) post(operator, "/operator/clinics/{id}/logins/{u}/reset", clinic.getId(), userId)
                 .exchange().getMvcResult().getFlashMap().get("newPassword");
         assertThat(logIn("rana.sec", first.password())).isEqualTo("/login?error");
-        assertThat(logIn("rana.sec", second.password())).isEqualTo("/");
+        assertThat(logIn("rana.sec", second.password())).isEqualTo("/app/");
 
         post(operator, "/operator/clinics/{id}/logins/{u}/enabled", clinic.getId(), userId).param("enabled", "false").exchange();
         assertThat(logIn("rana.sec", second.password())).isEqualTo("/login?error");
         post(operator, "/operator/clinics/{id}/logins/{u}/enabled", clinic.getId(), userId).param("enabled", "true").exchange();
-        assertThat(logIn("rana.sec", second.password())).isEqualTo("/");
+        assertThat(logIn("rana.sec", second.password())).isEqualTo("/app/");
     }
 
     @Test
@@ -307,12 +395,12 @@ class OperatorPagesIT extends DashboardTest {
                 .flash().containsEntry("error", "error.password-short");
         assertThat(post(secretary, "/account/password").param("currentPassword", "secret").param("newPassword", "long-enough-1"))
                 .flash().containsEntry("notice", "notice.password-changed");
-        assertThat(logIn(secretary.username(), "long-enough-1")).isEqualTo("/");
+        assertThat(logIn(secretary.username(), "long-enough-1")).isEqualTo("/app/");
 
         assertThat(get(operator, "/account/password")).hasStatusOk();
         post(operator, "/account/password").param("currentPassword", "operator-pass").param("newPassword", "operator-pass-2")
                 .exchange();
-        assertThat(logIn("omar", "operator-pass-2")).isEqualTo("/");
+        assertThat(logIn("omar", "operator-pass-2")).isEqualTo("/app/");
     }
 
     @Test
@@ -327,7 +415,7 @@ class OperatorPagesIT extends DashboardTest {
                 .param("businessAccountId", businessAccountId).param("accessToken", token).exchange();
     }
 
-    /** @return where the login sent the browser: "/" on success, "/login?error" otherwise */
+    /** @return where the login sent the browser: "/app/" on success, "/login?error" otherwise */
     private String logIn(String username, String password) {
         return mvc.post().uri("/login").param("username", username).param("password", password).with(csrf())
                 .exchange().getResponse().getHeader("Location");

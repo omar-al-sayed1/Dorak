@@ -72,9 +72,16 @@
 
         <div class="week-board" th:attr="data-focus-day=${focusDay}">
             <section class="day-col" th:each="c : ${columns}" th:id="'day-' + ${c.date()}" th:classappend="${c.today()} ? 'today'">
-                <header class="day-head">
-                    <strong th:text="${c.label()}">Mon 2 Nov</strong>
+                <!--/* The day's number (today's is lit) and name; along the foot of the head, how full the day is. */-->
+                <header class="day-head" th:title="${c.label()}">
+                    <span class="day-date">
+                        <span class="day-num" aria-hidden="true" th:text="${c.dayOfMonth()}">2</span>
+                        <strong class="day-wd"><span aria-hidden="true" th:text="${c.weekday()}">Mon</span>
+                            <span class="sr-only" th:text="${c.label()}">Mon 2 Nov</span></strong>
+                    </span>
                     <span class="count" th:if="${c.booked() > 0}" th:text="${c.booked()}">3</span>
+                    <span class="day-fill" aria-hidden="true" th:unless="${c.closed() or c.cells().isEmpty()}">
+                        <span th:style="'--fill:' + ${c.booked() * 100 / c.cells().size()} + '%'"></span></span>
                 </header>
                 <div class="day-closed" th:if="${c.closed()}" th:text="#{week.closed}">Closed</div>
                 <!--/* A closed day that is still to come can be opened for that date only. */-->
@@ -90,7 +97,12 @@
                     </form>
                 </details>
                 <ul class="day-cells" th:unless="${c.closed()}">
-                    <li th:each="cell : ${c.cells()}" th:switch="${cell.kind()}">
+                    <!--/* Today: a line where now is, before the first cell still to come (or after them all). */-->
+                    <th:block th:each="cell, iter : ${c.cells()}">
+                    <li class="week-now" th:if="${c.today() and cell.future() and (iter.first or !c.cells()[iter.index - 1].future())}"
+                        th:text="#{today.now(${nowTime})}">Now 12:05 PM</li>
+                    <li th:switch="${cell.kind()}"
+                        th:classappend="${cell.extraSlotId() != null and cell.kind() == 'free'} ? 'extra-cell'">
                         <!--/*
                           Tap or click: details in the slide-over. Open future ones can also be dragged onto a free
                           time (app.js, pointer events; draggable="false" keeps the browser's own link drag out of it).
@@ -111,13 +123,37 @@
                            th:attr="data-drop-date=${cell.bookDate()}, data-drop-time=${cell.bookTime()},
                                     data-drop-label=${c.label()} + ' ' + ${cell.time()}">
                             <span class="time" th:text="${cell.time()}">9:30 AM</span>
+                            <span class="extra-tag" th:if="${cell.extraSlotId() != null}" th:text="#{week.added-slot}">Added</span>
                             <svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>
                             <span class="sr-only" th:text="#{week.free}">Free</span>
                         </a>
+                        <!--/* An added slot nobody is booked in can go again. */-->
+                        <form th:if="${cell.extraSlotId() != null and cell.kind() == 'free'}" method="post"
+                              th:action="@{/week/remove-slot}" class="remove-slot" th:attr="data-confirm=#{week.remove-slot.confirm}">
+                            <input type="hidden" name="doctorId" th:value="${doctor.id}">
+                            <input type="hidden" name="slotId" th:value="${cell.extraSlotId()}">
+                            <button type="submit" class="icon-btn ghost-danger sm" th:title="#{week.remove-slot}" th:aria-label="#{week.remove-slot}">
+                                <svg class="icon" aria-hidden="true"><use href="#i-x"/></svg></button>
+                        </form>
                         <div th:case="*" class="block past"><span class="time" th:text="${cell.time()}">8:30 AM</span>
                             <span th:text="#{week.free}">Free</span></div>
                     </li>
+                    </th:block>
+                    <li class="week-now" th:if="${c.today() and !c.cells().isEmpty() and !c.cells()[c.cells().size() - 1].future()}"
+                        th:text="#{today.now(${nowTime})}">Now 12:05 PM</li>
                 </ul>
+                <!--/* One more slot on this date only (after the last one, or at any free time); the weekly hours stay. */-->
+                <details class="open-day add-slot" th:unless="${c.past()}">
+                    <summary class="button ghost sm"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>
+                        <span th:text="#{week.add-slot}">Add a slot</span></summary>
+                    <form method="post" th:action="@{/week/add-slot}">
+                        <input type="hidden" name="doctorId" th:value="${doctor.id}">
+                        <input type="hidden" name="date" th:value="${c.date()}">
+                        <label><span th:text="#{week.add-slot.time}">At</span><input type="time" name="time" th:value="${c.nextSlot()}" required></label>
+                        <span class="hint" th:text="#{week.add-slot.hint(${doctor.slotMinutes + ''})}">20 minutes, on this date only.</span>
+                        <button type="submit" class="primary sm" th:text="#{week.add-slot.save}">Add</button>
+                    </form>
+                </details>
             </section>
         </div>
 

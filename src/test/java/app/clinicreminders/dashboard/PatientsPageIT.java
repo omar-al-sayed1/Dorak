@@ -1,6 +1,8 @@
 package app.clinicreminders.dashboard;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -22,12 +24,15 @@ import app.clinicreminders.reminder.Reminder;
 import app.clinicreminders.reminder.ReminderRepository;
 import app.clinicreminders.reminder.ReminderStatus;
 import app.clinicreminders.scheduling.Doctor;
-import app.clinicreminders.scheduling.Doctor;
 import app.clinicreminders.staff.StaffPrincipal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+/**
+ * Patients, now the React table: the old address leads there, and what the old page did (search as
+ * typed, deleting on request) goes through the JSON API. The table itself: PatientsApiIT.
+ */
 class PatientsPageIT extends DashboardTest {
 
     @Autowired
@@ -60,7 +65,24 @@ class PatientsPageIT extends DashboardTest {
     }
 
     @Test
-    void eachPatientShowsWhetherTheyAreBooked() {
+    void theOldAddressOpensTheTableWithItsSearch() {
+        assertThat(get(staff, "/patients")).hasRedirectedUrl("/app/patients");
+        assertThat(get(staff, "/patients?q=70 123")).hasRedirectedUrl("/app/patients?q=70%20123");
+        assertThat(get(staff, "/")).bodyText().as("the classic sidebar too").contains("href=\"/app/patients\"");
+    }
+
+    @Test
+    void searchesByNameOrByPhoneAsTyped() {
+        assertThat(get(staff, "/api/patients?q=ran")).bodyJson().extractingPath("$.patients[*].name").asArray()
+                .containsExactly("Rana Haddad");
+        assertThat(get(staff, "/api/patients?q=70 123")).bodyJson().extractingPath("$.patients[*].name").asArray()
+                .as("spaces in the number").containsExactly("Rana Haddad");
+        assertThat(get(staff, "/api/patients?q=03 111")).bodyJson().extractingPath("$.patients[*].name").asArray()
+                .as("the leading 0 of a local number").containsExactly("Karim");
+    }
+
+    @Test
+    void theNextAppointmentIsTheNextActiveOne() {
         Doctor doctor = data.doctor(clinic, "Dr. Khoury", 30);
         // Wednesday 21 October 10:30 in Beirut; a cancelled and a past one do not count.
         data.appointment(doctor, rana, Instant.parse("2026-10-21T07:30:00Z"), Duration.ofMinutes(30));
@@ -69,19 +91,12 @@ class PatientsPageIT extends DashboardTest {
         Patient karim = patients.findByClinicIdAndPhoneE164OrderById(clinic.getId(), "+9613111222").getFirst();
         data.cancelledAppointment(doctor, karim, Instant.parse("2026-10-22T07:30:00Z"), Duration.ofMinutes(30));
 
-        assertThat(get(staff, "/patients")).hasStatusOk().bodyText()
-                .contains("Next appointment", "Wed 21 Oct, 10:30 AM", "Dr. Khoury", "No upcoming appointment")
-                .doesNotContain("Wed 28 Oct", "Thu 22 Oct");
-    }
-
-    @Test
-    void searchesByNameOrByPhoneAsTyped() {
-        assertThat(get(staff, "/patients?q=ran")).hasStatusOk().bodyText()
-                .contains("Rana Haddad").doesNotContain("Karim", "Rania Elsewhere");
-        assertThat(get(staff, "/patients?q=70 123")).bodyText()
-                .contains("Rana Haddad").doesNotContain("Rania Elsewhere");
-        assertThat(get(staff, "/patients?q=03 111")).bodyText()
-                .contains("Karim").doesNotContain("Rana Haddad");
+        assertThat(get(staff, "/api/patients")).bodyJson().satisfies(json -> {
+            json.assertThat().extractingPath("$.patients[0].name").isEqualTo("Karim");
+            json.assertThat().extractingPath("$.patients[0].next").isNull();
+            json.assertThat().extractingPath("$.patients[1].next.label").isEqualTo("Wed 21 Oct, 10:30 AM");
+            json.assertThat().extractingPath("$.patients[1].next.doctor").isEqualTo("Dr. Khoury");
+        });
     }
 
     @Test
@@ -93,8 +108,7 @@ class PatientsPageIT extends DashboardTest {
         conversations.save(new Conversation(clinic.getId(), rana.getPhoneE164(), ConversationState.MENU,
                 Instant.parse("2026-10-14T09:30:00Z")));
 
-        assertThat(post(staff, "/patients/{id}/delete", rana.getId()))
-                .hasStatus3xxRedirection().headers().hasValue("Location", "/patients");
+        assertThat(mvc.delete().uri("/api/patients/{id}", rana.getId()).with(user(staff)).with(csrf())).hasStatus(204);
 
         assertThat(patients.findByIdAndClinicId(rana.getId(), clinic.getId())).isEmpty();
         Appointment cancelled = appointments.findByIdAndClinicId(future.getId(), clinic.getId()).orElseThrow();
@@ -109,30 +123,11 @@ class PatientsPageIT extends DashboardTest {
     }
 
     @Test
-    void theListLoadsThirtyAtATimeAsYouScroll() {
-        for (int i = 0; i < 30; i++) {
-            data.patient(clinic, "Zed " + (100 + i), "+9617099" + (1000 + i), Language.AR);
-        }
-
-        assertThat(get(staff, "/patients")).bodyText()
-                .contains("32 patients", "class=\"load-more\"", "hx-get=\"/patients?q=&amp;page=2\"")
-                .doesNotContain("Zed 128", "Zed 129");
-        assertThat(get(staff, "/patients?page=2").header("HX-Request", "true")).hasStatusOk().bodyText()
-                .as("only the next cards, to append").contains("Zed 128", "Zed 129").doesNotContain("<html", "class=\"load-more\"");
-        assertThat(get(staff, "/patients?q=zed")).bodyText().as("thirty fit on one page")
-                .contains("30 patients", "Zed 129").doesNotContain("class=\"load-more\"", "Rana Haddad");
-        data.patient(clinic, "Zed 130", "+961709992000", Language.AR);
-        assertThat(get(staff, "/patients?q=zed")).bodyText().as("the search goes with the next page")
-                .contains("hx-get=\"/patients?q=zed&amp;page=2\"");
-        assertThat(get(staff, "/patients?q=rana")).bodyText().contains("1 patients").doesNotContain("class=\"load-more\"");
-    }
-
-    @Test
     void anotherClinicsPatientCannotBeDeleted() {
         Patient theirs = patients.findByClinicIdAndPhoneE164OrderById(
                 jdbc.queryForObject("select id from clinic where name = 'B'", Long.class), "+96170123457").getFirst();
 
-        assertThat(post(staff, "/patients/{id}/delete", theirs.getId())).hasStatus(404);
+        assertThat(mvc.delete().uri("/api/patients/{id}", theirs.getId()).with(user(staff)).with(csrf())).hasStatus(404);
         assertThat(jdbc.queryForObject("select count(*) from patient", Integer.class)).isEqualTo(3);
     }
 }

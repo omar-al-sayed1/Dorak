@@ -48,7 +48,9 @@ public abstract class IntegrationTest {
 
     @BeforeEach
     void resetState() {
-        jdbc.execute("truncate table clinic, message_rate, webhook_inbox restart identity cascade");
+        jdbc.execute("truncate table clinic, message_rate, webhook_inbox, deleted_clinic restart identity cascade");
+        jdbc.execute("update billing_plan set monthly_fee_usd = 0, discount_6_percent = 0, discount_12_percent = 0, "
+                + "grace_days = 14, message_costs = 'INCLUDED'");
         clock.setInstant(DEFAULT_NOW);
         whatsApp.reset();
         sleeper.reset();

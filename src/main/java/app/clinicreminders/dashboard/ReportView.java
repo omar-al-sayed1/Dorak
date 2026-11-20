@@ -14,6 +14,8 @@ import java.time.format.TextStyle;
 import java.util.List;
 import java.util.Locale;
 
+import app.clinicreminders.balance.Balances.MonthMoney;
+import app.clinicreminders.balance.PaymentMethod;
 import app.clinicreminders.common.Language;
 import app.clinicreminders.report.BusyHours;
 import app.clinicreminders.report.BusyHours.Cell;
@@ -143,6 +145,46 @@ final class ReportView {
         return sent > 0 && unpriced == sent ? "—" : usd(estimated);
     }
 
+    /**
+     * The month's fees and payments as the report shows them: "$1,250.00" amounts, by method.
+     *
+     * @param collectedPercent how much of what was charged came in, for the bar; null when nothing was charged
+     */
+    record MoneyView(String charged, String collected, String owedNow, List<MethodTotal> byMethod,
+                     @Nullable Integer collectedPercent) {
+    }
+
+    /**
+     * @param percent the method's share of what was collected, for its bar
+     */
+    record MethodTotal(PaymentMethod method, String amount, int percent) {
+    }
+
+    static MoneyView moneyView(MonthMoney money) {
+        return new MoneyView(dollars(money.charged()), dollars(money.collected()), dollars(money.owedNow()),
+                java.util.Arrays.stream(PaymentMethod.values())
+                        .map(method -> {
+                            BigDecimal amount = money.byMethod().getOrDefault(method, BigDecimal.ZERO);
+                            return new MethodTotal(method, dollars(amount), percent(amount, money.collected()));
+                        })
+                        .toList(),
+                money.charged().signum() > 0 ? percent(money.collected(), money.charged()) : null);
+    }
+
+    /** A part of a whole as 0 to 100, for a bar: nothing of nothing is 0, and more than the whole is 100. */
+    static int percent(BigDecimal part, BigDecimal whole) {
+        if (whole.signum() <= 0 || part.signum() <= 0) {
+            return 0;
+        }
+        return Math.min(100, part.multiply(BigDecimal.valueOf(100)).divide(whole, 0, RoundingMode.HALF_UP).intValue());
+    }
+
+    /** "$1,250.00": clinic money, with thousands separators. */
+    static String dollars(BigDecimal amount) {
+        return "$" + new java.text.DecimalFormat("#,##0.00", java.text.DecimalFormatSymbols.getInstance(Locale.ROOT))
+                .format(amount);
+    }
+
     /** "$12.34"; a few messages may cost less than a cent. */
     static String usd(BigDecimal amount) {
         if (amount.signum() > 0 && amount.compareTo(new BigDecimal("0.005")) < 0) {
@@ -152,11 +194,12 @@ final class ReportView {
     }
 
     /** The report as a CSV download, named after the clinic's month. */
-    static ResponseEntity<String> csv(MonthlyReport report, Language language, MessageSource messages) {
+    static ResponseEntity<String> csv(MonthlyReport report, @Nullable MonthMoney money, Language language,
+                                      MessageSource messages) {
         String filename = "report-" + report.month().month() + ".csv";
         return ResponseEntity.ok()
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(filename).build().toString())
-                .body(ReportCsv.of(report, messages, language.locale()));
+                .body(ReportCsv.of(report, money, messages, language.locale()));
     }
 }

@@ -2,6 +2,8 @@ package app.clinicreminders.dashboard;
 
 import java.time.YearMonth;
 
+import app.clinicreminders.balance.Balances;
+import app.clinicreminders.balance.Balances.MonthMoney;
 import app.clinicreminders.dashboard.ClinicContext.Ctx;
 import app.clinicreminders.report.MonthlyReport;
 import app.clinicreminders.report.Reports;
@@ -26,11 +28,13 @@ class ReportController {
     private final ClinicContext context;
     private final Reports reports;
     private final MessageSource messages;
+    private final Balances balances;
 
-    ReportController(ClinicContext context, Reports reports, MessageSource messages) {
+    ReportController(ClinicContext context, Reports reports, MessageSource messages, Balances balances) {
         this.context = context;
         this.reports = reports;
         this.messages = messages;
+        this.balances = balances;
     }
 
     /** @param month "2026-10"; the current month without it */
@@ -41,6 +45,10 @@ class ReportController {
         MonthlyReport report = report(ctx, month);
         ReportView.addTo(model, report, "/report", ctx.clinic().getCreatedAt(), ctx.now(), ctx.language(), messages);
         model.addAttribute("busy", ReportView.busyView(reports.busyHours(report), ctx.language(), messages));
+        MonthMoney money = money(ctx, report);
+        if (money != null) {
+            model.addAttribute("money", ReportView.moneyView(money));
+        }
         model.addAttribute("active", "report");
         return "dashboard/report";
     }
@@ -49,7 +57,13 @@ class ReportController {
     ResponseEntity<String> csv(@AuthenticationPrincipal StaffPrincipal staff, HttpServletRequest request,
                                @RequestParam(required = false) String month) {
         Ctx ctx = context.of(staff, request);
-        return ReportView.csv(report(ctx, month), ctx.language(), messages);
+        MonthlyReport report = report(ctx, month);
+        return ReportView.csv(report, money(ctx, report), ctx.language(), messages);
+    }
+
+    /** The month's fees and payments; money is the front desk's, so none for a doctor's login. */
+    private MonthMoney money(Ctx ctx, MonthlyReport report) {
+        return ctx.isDoctor() ? null : balances.month(ctx.clinicId(), report.month().from(), report.month().to());
     }
 
     private MonthlyReport report(Ctx ctx, String month) {

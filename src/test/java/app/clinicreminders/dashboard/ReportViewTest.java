@@ -6,7 +6,10 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.util.Map;
 
+import app.clinicreminders.balance.Balances.MonthMoney;
+import app.clinicreminders.balance.PaymentMethod;
 import org.junit.jupiter.api.Test;
 
 class ReportViewTest {
@@ -35,5 +38,31 @@ class ReportViewTest {
         assertThat(ReportView.cost(BigDecimal.ZERO, 12, 12)).as("no rate was set").isEqualTo("—");
         assertThat(ReportView.cost(new BigDecimal("0.0314"), 12, 10)).isEqualTo("$0.03");
         assertThat(ReportView.cost(BigDecimal.ZERO, 0, 0)).isEqualTo("$0.00");
+    }
+
+    @Test
+    void theBarsShowAPartOfAWholeFromNothingToAllOfIt() {
+        assertThat(ReportView.percent(new BigDecimal("1100"), new BigDecimal("1250"))).isEqualTo(88);
+        assertThat(ReportView.percent(new BigDecimal("1"), new BigDecimal("3"))).isEqualTo(33);
+        assertThat(ReportView.percent(BigDecimal.ZERO, new BigDecimal("50"))).isZero();
+        assertThat(ReportView.percent(new BigDecimal("20"), BigDecimal.ZERO)).as("nothing to compare with").isZero();
+        assertThat(ReportView.percent(new BigDecimal("80"), new BigDecimal("50"))).as("paid ahead: the bar is full").isEqualTo(100);
+        assertThat(ReportView.percent(new BigDecimal("-5"), new BigDecimal("50"))).isZero();
+    }
+
+    @Test
+    void theMonthsMoneySaysHowMuchOfTheChargesCameInAndByWhichMethod() {
+        ReportView.MoneyView view = ReportView.moneyView(new MonthMoney(new BigDecimal("200"), new BigDecimal("150"),
+                Map.of(PaymentMethod.CASH, new BigDecimal("120"), PaymentMethod.CARD, new BigDecimal("30")), new BigDecimal("50")));
+        assertThat(view.collectedPercent()).isEqualTo(75);
+        assertThat(view.byMethod()).filteredOn(total -> total.method() == PaymentMethod.CASH)
+                .singleElement().satisfies(cash -> {
+                    assertThat(cash.amount()).isEqualTo("$120.00");
+                    assertThat(cash.percent()).isEqualTo(80);
+                });
+
+        ReportView.MoneyView nothingCharged = ReportView.moneyView(
+                new MonthMoney(BigDecimal.ZERO, new BigDecimal("40"), Map.of(PaymentMethod.CASH, new BigDecimal("40")), BigDecimal.ZERO));
+        assertThat(nothingCharged.collectedPercent()).as("no bar without charges").isNull();
     }
 }

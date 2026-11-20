@@ -146,6 +146,41 @@ class SlotEngineTest {
     }
 
     @Nested
+    class ExtraSlots {
+
+        @Test
+        void anExtraSlotAfterTheLastOneExtendsThatDateOnly() {
+            var schedule = schedule(20).weekly(MONDAY, t("09:00"), t("10:00")).extraOn(MON, t("10:00")).build();
+
+            assertThat(times(freeSlots(schedule, MON, MON))).containsExactly("09:00", "09:20", "09:40", "10:00");
+            assertThat(times(freeSlots(schedule, MON.plusWeeks(1), MON.plusWeeks(1)))).containsExactly("09:00", "09:20", "09:40");
+        }
+
+        @Test
+        void anExtraSlotCanStandAloneOffTheGrid() {
+            var schedule = schedule(20).weekly(MONDAY, t("09:00"), t("10:00")).extraOn(MON, t("13:10")).build();
+
+            assertThat(times(freeSlots(schedule, MON, MON))).containsExactly("09:00", "09:20", "09:40", "13:10");
+            assertWellFormed(freeSlots(schedule, MON, MON), 20);
+        }
+
+        @Test
+        void anExtraSlotOpensAClosedDayAndAddsToSpecialHours() {
+            var schedule = schedule(30)
+                    .weekly(MONDAY, t("09:00"), t("10:00"))
+                    .closedOn(MON)
+                    .extraOn(MON, t("11:00"))
+                    .hoursOn(TUE, t("14:00"), t("15:00"))
+                    .extraOn(TUE, t("15:00"))
+                    .extraOn(SUN, t("10:00"))
+                    .build();
+
+            assertThat(dateTimes(freeSlots(schedule, SUN, TUE))).containsExactly(
+                    "2026-11-01 10:00", "2026-11-02 11:00", "2026-11-03 14:00", "2026-11-03 14:30", "2026-11-03 15:00");
+        }
+    }
+
+    @Nested
     class ExistingAppointments {
 
         private final DoctorSchedule schedule = schedule(30).weekly(MONDAY, t("09:00"), t("11:00")).build();

@@ -22,6 +22,8 @@
         <!-- Node for the React dashboard (frontend/), downloaded into frontend/node by the build. -->
         <node.version>v24.18.0</node.version>
         <skipTests>false</skipTests>
+        <!-- The React tests: skipped with -DskipTests, and with -Dskip.npm (the profile below). -->
+        <npm.test.skip>${skipTests}</npm.test.skip>
     </properties>
 
     <dependencies>
@@ -146,11 +148,19 @@
                         <goals><goal>npm</goal></goals>
                         <configuration>
                             <arguments>test</arguments>
-                            <skip>${skipTests}</skip>
+                            <skip>${npm.test.skip}</skip>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>skip-npm</id>
+            <activation><property><name>skip.npm</name></property></activation>
+            <properties><npm.test.skip>true</npm.test.skip></properties>
+        </profile>
+    </profiles>
 </project>

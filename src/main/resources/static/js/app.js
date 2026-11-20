@@ -1,7 +1,8 @@
 /*
  * Dashboard behaviour, no framework: theme choice, toasts, confirm dialogs (for htmx's hx-confirm
- * and for plain forms with data-confirm), keyboard shortcuts, a loading bar for actions, and small
- * helpers (date picker navigation, password reveal). Every page works without it.
+ * and for plain forms with data-confirm), keyboard shortcuts, a loading bar for actions, dragging
+ * appointments on the week page and weekly hours on a doctor's page, and small helpers (date picker
+ * navigation, password reveal). Every page works without it.
  */
 (() => {
     const root = document.documentElement;
@@ -38,7 +39,7 @@
             const label = collapsed ? button.dataset.labelExpand : button.dataset.labelCollapse;
             button.setAttribute("aria-expanded", String(!collapsed));
             button.setAttribute("aria-label", label);
-            button.title = label + " ([)";
+            button.dataset.tip = label;
         });
     }
 
@@ -64,7 +65,7 @@
         markSidebar();
     });
 
-    /* Toasts: success ones leave by themselves, errors stay until closed. */
+    /* Toasts: success ones leave by themselves; errors and sticky ones (an Undo) stay until closed. */
     function initToasts() {
         document.querySelectorAll(".toast:not([data-ready])").forEach(toast => {
             toast.dataset.ready = "1";
@@ -73,7 +74,7 @@
                 setTimeout(() => toast.remove(), 260);
             };
             toast.querySelector(".toast-close")?.addEventListener("click", close);
-            if (!toast.classList.contains("error")) {
+            if (!toast.classList.contains("error") && !toast.classList.contains("sticky")) {
                 setTimeout(close, 5000);
             }
         });
@@ -124,6 +125,38 @@
                 form.dataset.confirmed = "1";
                 form.requestSubmit(event.submitter);
             }
+        });
+    });
+
+    /*
+     * A form being sent: its button shows a spinner and can't be pressed again, so a double click never
+     * books or records twice. Not for htmx's forms (htmx handles them and keeps the page) nor searches.
+     * Asked first (data-confirm)? Only once the answer is yes, as that handler stops the first submit.
+     */
+    document.addEventListener("submit", event => {
+        const form = event.target;
+        if (event.defaultPrevented || form.method.toLowerCase() !== "post" || form.target === "_blank"
+            || form.matches("[hx-post], [hx-put], [hx-delete], [hx-get]")) {
+            return;
+        }
+        const button = event.submitter ?? form.querySelector("button[type=submit], button:not([type])");
+        if (!button || button.form !== form) {
+            return;
+        }
+        button.classList.add("is-busy");
+        button.setAttribute("aria-busy", "true");
+        // After this tick: disabled now, the button's own name and value would not be sent.
+        setTimeout(() => {
+            button.disabled = true;
+        });
+    });
+
+    // Back to a page the browser kept: its buttons work again.
+    window.addEventListener("pageshow", () => {
+        document.querySelectorAll("button.is-busy").forEach(button => {
+            button.classList.remove("is-busy");
+            button.removeAttribute("aria-busy");
+            button.disabled = false;
         });
     });
 
@@ -789,7 +822,65 @@
         document.querySelectorAll(`[data-preview-line="${name}"]`).forEach(line => (line.hidden = !field.value.trim()));
         const anyFilled = [...document.querySelectorAll("[data-preview]")].some(other => other.value.trim());
         document.querySelectorAll("[data-preview-empty]").forEach(empty => (empty.hidden = anyFilled));
+        // The bubble answers each change with a small bump.
+        document.querySelectorAll(".preview .bubble").forEach(bubble => {
+            bubble.classList.remove("bump");
+            void bubble.offsetWidth;
+            bubble.classList.add("bump");
+        });
     });
+
+    /* Sign in: a hint under the password while Caps Lock is on. */
+    function capsLock(event) {
+        const field = event.target.closest?.("[data-caps-watch]");
+        const hint = field?.closest("label")?.querySelector("[data-caps-hint]");
+        if (hint && typeof event.getModifierState === "function") {
+            hint.hidden = !event.getModifierState("CapsLock");
+        }
+    }
+    document.addEventListener("keydown", capsLock);
+    document.addEventListener("keyup", capsLock);
+
+    /*
+     * A form with data-dirty-watch (Settings) gets class "dirty" while its fields differ from what the
+     * page loaded with, so its Save bar can say there are unsaved changes.
+     */
+    const formState = form => JSON.stringify([...new FormData(form)].filter(([name]) => name !== "_csrf"));
+    function watchDirtyForms() {
+        document.querySelectorAll("form[data-dirty-watch]").forEach(form => {
+            const loaded = formState(form);
+            const mark = () => form.classList.toggle("dirty", formState(form) !== loaded);
+            form.addEventListener("input", mark);
+            form.addEventListener("change", mark);
+        });
+    }
+
+    /*
+     * The big figures (Report, the classic Today) count up from zero as the page opens. Only plain whole
+     * numbers; not where motion is unwanted.
+     */
+    function countUp() {
+        if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            return;
+        }
+        document.querySelectorAll(".stat-value").forEach((figure, index) => {
+            const text = figure.textContent.trim();
+            if (!/^\d{1,6}$/.test(text) || Number(text) === 0) {
+                return;
+            }
+            const value = Number(text);
+            const began = performance.now() + 150 + index * 60;
+            figure.textContent = "0";
+            const tick = now => {
+                const progress = Math.min(Math.max((now - began) / 800, 0), 1);
+                figure.textContent = String(Math.round(value * (1 - Math.pow(1 - progress, 3))));
+                if (progress < 1) {
+                    requestAnimationFrame(tick);
+                }
+            };
+            requestAnimationFrame(tick);
+        });
+    }
 
     /*
      * Opening another page from a link: if it takes more than a moment, a skeleton of a page takes the
@@ -820,6 +911,37 @@
         document.body.classList.remove("navigating");
     });
 
+    /* <button data-dialog-open="id"> opens that <dialog>; a [data-dialog-close] inside, or a click on the backdrop, closes it. */
+    document.addEventListener("click", event => {
+        const opener = event.target.closest("[data-dialog-open]");
+        const dialog = opener ? document.getElementById(opener.dataset.dialogOpen) : null;
+        if (dialog && typeof dialog.showModal === "function") {
+            dialog.showModal();
+            return;
+        }
+        if (event.target.closest("[data-dialog-close]") || event.target.matches("dialog.modal-form[open]")) {
+            event.target.closest("dialog")?.close();
+        }
+    });
+
+    /*
+     * <input data-type-to-confirm="word" data-also="delete">: its form's button stays off until the
+     * word is typed. The server checks the word as well.
+     */
+    function typedToConfirm(input) {
+        const typed = input.value.trim().toLowerCase();
+        const button = input.form?.querySelector("button[type=submit]");
+        if (button) {
+            button.disabled = typed !== input.dataset.typeToConfirm.toLowerCase() && typed !== (input.dataset.also || "").toLowerCase();
+        }
+    }
+    document.querySelectorAll("[data-type-to-confirm]").forEach(typedToConfirm);
+    document.addEventListener("input", event => {
+        if (event.target.matches?.("[data-type-to-confirm]")) {
+            typedToConfirm(event.target);
+        }
+    });
+
     /* A GET filter form with data-clean-query leaves its empty fields out of the address htmx pushes. */
     document.addEventListener("htmx:configRequest", event => {
         const formData = event.detail.formData;
@@ -836,11 +958,321 @@
         }
     });
 
+
+    /*
+     * The weekly hours chart (a doctor's page): drag on a day to add hours, drag a block to move
+     * it, drag its ends to change them; arrow keys move a focused block by 15 minutes, with Shift
+     * they move its end. Times snap to 15 minutes, between 6:00 and 22:00, and blocks never
+     * overlap. Each change is saved at once and the chart comes back from the server, with its
+     * toast. Without this, the chart is a picture and the form under it adds hours.
+     */
+    const BAR_START = 6 * 60;
+    const BAR_END = 22 * 60;
+    const STEP = 15;
+    let hoursDrag = null;
+
+    const minutesOf = text => {
+        const [h, m] = text.split(":").map(Number);
+        return h * 60 + m;
+    };
+    const clockOf = minutes => String(Math.floor(minutes / 60)).padStart(2, "0") + ":" + String(minutes % 60).padStart(2, "0");
+    const snap = minutes => Math.round(minutes / STEP) * STEP;
+
+    /* "1:15 PM", or "١:١٥ م" in Arabic with Western digits, as the server writes times. */
+    function timeLabel(minutes) {
+        const lang = root.lang === "ar" ? "ar-u-nu-latn" : (root.lang || "en");
+        const date = new Date(2000, 0, 1, Math.floor(minutes / 60), minutes % 60);
+        return new Intl.DateTimeFormat(lang, {hour: "numeric", minute: "2-digit"}).format(date);
+    }
+
+    /* The minute under the pointer on a day's bar; the bar runs right to left in Arabic. */
+    function minuteAt(track, clientX) {
+        const box = track.getBoundingClientRect();
+        const rtl = getComputedStyle(track).direction === "rtl";
+        const share = Math.min(1, Math.max(0, (rtl ? box.right - clientX : clientX - box.left) / box.width));
+        return BAR_START + share * (BAR_END - BAR_START);
+    }
+
+    function place(seg, start, end) {
+        const span = BAR_END - BAR_START;
+        seg.style.insetInlineStart = ((start - BAR_START) / span * 100) + "%";
+        seg.style.width = ((end - start) / span * 100) + "%";
+        seg.dataset.start = clockOf(start);
+        seg.dataset.end = clockOf(end);
+        const label = seg.querySelector(".seg-label");
+        if (label) {
+            label.textContent = timeLabel(start) + " – " + timeLabel(end);
+        }
+    }
+
+    /* How far a block may go: up to its neighbours on the same day, within the bar. */
+    function room(track, seg, start, end) {
+        let low = BAR_START;
+        let high = BAR_END;
+        track.querySelectorAll(".hours-seg").forEach(other => {
+            if (other === seg) {
+                return;
+            }
+            const otherStart = minutesOf(other.dataset.start);
+            const otherEnd = minutesOf(other.dataset.end);
+            if (otherEnd <= start) {
+                low = Math.max(low, otherEnd);
+            } else if (otherStart >= end) {
+                high = Math.min(high, otherStart);
+            }
+        });
+        return {low, high};
+    }
+
+    /*
+     * Saves with the chart's own CSRF token, then swaps in the chart the server sends back.
+     * {@code fields}: an object, or a form's URLSearchParams; "focus" names the block to focus after.
+     */
+    async function saveHours(url, fields) {
+        const card = document.getElementById("weekly-hours");
+        const token = card.querySelector("input[name=_csrf]");
+        const body = fields instanceof URLSearchParams ? fields : new URLSearchParams(fields);
+        if (token && !body.has("_csrf")) {
+            body.set("_csrf", token.value);
+        }
+        const focus = body.get("focus");
+        body.delete("focus");
+        card.classList.add("saving");
+        try {
+            const response = await fetch(url, {method: "POST", body, credentials: "same-origin"});
+            const page = new DOMParser().parseFromString(await response.text(), "text/html");
+            const fresh = page.getElementById("weekly-hours");
+            if (!response.ok || !fresh) {
+                window.location.reload();
+                return;
+            }
+            card.replaceWith(fresh);
+            const toasts = document.querySelector(".toasts");
+            page.querySelectorAll(".toasts .toast").forEach(toast => toasts?.appendChild(toast));
+            initToasts();
+            if (focus) {
+                fresh.querySelector(`.hours-seg[data-rule="${focus}"]`)?.focus();
+            }
+        } catch (failed) {
+            window.location.reload();
+        }
+    }
+
+    function saveSeg(seg, track) {
+        const card = document.getElementById("weekly-hours");
+        const url = card.dataset.hoursUrl;
+        const fields = {start: seg.dataset.start, end: seg.dataset.end};
+        if (seg.dataset.rule) {
+            saveHours(url + "/" + seg.dataset.rule, {...fields, focus: seg.dataset.rule});
+        } else {
+            saveHours(url, {...fields, day: track.dataset.day});
+        }
+    }
+
+    document.addEventListener("pointerdown", event => {
+        const track = event.target.closest("#weekly-hours .hours-track");
+        if (!track || event.button !== 0 || event.target.closest("form, button")) {
+            return;
+        }
+        const seg = event.target.closest(".hours-seg");
+        const at = minuteAt(track, event.clientX);
+        if (seg) {
+            const start = minutesOf(seg.dataset.start);
+            const end = minutesOf(seg.dataset.end);
+            const mode = event.target.closest(".seg-start") ? "start" : event.target.closest(".seg-end") ? "end" : "move";
+            hoursDrag = {track, seg, mode, start, end, grab: at - start, ...room(track, seg, start, end), moved: false};
+        } else {
+            // A new block, drawn from where the pointer went down.
+            const anchor = snap(at);
+            const ghost = document.createElement("div");
+            ghost.className = "hours-seg drawing";
+            ghost.innerHTML = '<span class="seg-label"></span>';
+            track.appendChild(ghost);
+            track.querySelector(".closed-label")?.classList.add("hidden");
+            hoursDrag = {track, seg: ghost, mode: "draw", anchor, start: anchor, end: anchor, ...room(track, ghost, anchor, anchor),
+                moved: false};
+        }
+        hoursDrag.pointerId = event.pointerId;
+        track.setPointerCapture(event.pointerId);
+        hoursDrag.seg.classList.add("dragging");
+        event.preventDefault();
+    });
+
+    document.addEventListener("pointermove", event => {
+        if (!hoursDrag || event.pointerId !== hoursDrag.pointerId) {
+            return;
+        }
+        const d = hoursDrag;
+        const at = minuteAt(d.track, event.clientX);
+        let start = d.start;
+        let end = d.end;
+        if (d.mode === "move") {
+            const length = d.end - d.start;
+            start = Math.min(Math.max(snap(at - d.grab), d.low), d.high - length);
+            end = start + length;
+        } else if (d.mode === "start") {
+            start = Math.min(Math.max(snap(at), d.low), d.end - STEP);
+        } else if (d.mode === "end") {
+            end = Math.max(Math.min(snap(at), d.high), d.start + STEP);
+        } else {
+            const here = Math.min(Math.max(snap(at), d.low), d.high);
+            start = Math.min(d.anchor, here);
+            end = Math.max(d.anchor, here);
+        }
+        if (start !== minutesOf(d.seg.dataset.start ?? "0:0") || end !== minutesOf(d.seg.dataset.end ?? "0:0")) {
+            d.moved = true;
+            if (end > start) {
+                place(d.seg, start, end);
+            }
+        }
+    });
+
+    function endHoursDrag(event, keep) {
+        if (!hoursDrag || event.pointerId !== hoursDrag.pointerId) {
+            return;
+        }
+        const {seg, track, mode, moved} = hoursDrag;
+        hoursDrag = null;
+        seg.classList.remove("dragging");
+        const drawn = mode === "draw";
+        const start = seg.dataset.start ? minutesOf(seg.dataset.start) : 0;
+        const end = seg.dataset.end ? minutesOf(seg.dataset.end) : 0;
+        if (keep && moved && end - start >= STEP) {
+            saveSeg(seg, track);
+        } else if (drawn) {
+            seg.remove();
+            track.querySelector(".closed-label")?.classList.remove("hidden");
+        } else if (moved) {
+            window.location.reload();
+        }
+    }
+
+    document.addEventListener("pointerup", event => endHoursDrag(event, true));
+    document.addEventListener("pointercancel", event => endHoursDrag(event, false));
+
+    /* Arrow keys on a focused block: move it 15 minutes; with Shift, move its end. Saved when the keys stop. */
+    let keyTimer = 0;
+    document.addEventListener("keydown", event => {
+        const seg = event.target.closest?.("#weekly-hours .hours-seg[data-rule]");
+        if (!seg || !["ArrowLeft", "ArrowRight"].includes(event.key)) {
+            return;
+        }
+        event.preventDefault();
+        const track = seg.closest(".hours-track");
+        const rtl = getComputedStyle(track).direction === "rtl";
+        const later = (event.key === "ArrowRight") !== rtl;
+        const delta = later ? STEP : -STEP;
+        let start = minutesOf(seg.dataset.start);
+        let end = minutesOf(seg.dataset.end);
+        const {low, high} = room(track, seg, start, end);
+        if (event.shiftKey) {
+            end = Math.min(Math.max(end + delta, start + STEP), high);
+        } else if (start + delta >= low && end + delta <= high) {
+            start += delta;
+            end += delta;
+        }
+        place(seg, start, end);
+        clearTimeout(keyTimer);
+        keyTimer = setTimeout(() => saveSeg(seg, track), 700);
+    });
+
+    /*
+     * The hours card's forms (a phone's day list, "Copy to..."): saved in place, like a drag, instead
+     * of reloading the page; the button pressed may send the form elsewhere (Delete).
+     */
+    document.addEventListener("submit", event => {
+        const form = event.target.closest("#weekly-hours form[data-hours-form]");
+        if (!form) {
+            return;
+        }
+        event.preventDefault();
+        const button = event.submitter;
+        const url = button?.hasAttribute("formaction") ? button.formAction : form.action;
+        saveHours(url, new URLSearchParams(new FormData(form)));
+    });
+
+    /* "Morning", "Afternoon"...: fill in the shift's times; Add saves them. */
+    document.addEventListener("click", event => {
+        const preset = event.target.closest("[data-preset]");
+        if (!preset) {
+            return;
+        }
+        const [start, end] = preset.dataset.preset.split("-");
+        const form = preset.closest("form");
+        form.elements.start.value = start;
+        form.elements.end.value = end;
+        form.querySelectorAll("[data-preset]").forEach(other => other.classList.toggle("on", other === preset));
+    });
+
+    /* One of a day's hours (or "Add hours") open at a time. */
+    document.addEventListener("toggle", event => {
+        const opened = event.target;
+        if (opened.matches?.(".hd-edit") && opened.open) {
+            document.querySelectorAll(".hd-edit[open]").forEach(other => other !== opened && (other.open = false));
+        }
+    }, true);
+
+    /*
+     * A doctor's page on a phone: the section tab of the part in view is lit, the last one whose top
+     * has passed under the tabs. Looked up on each scroll, as saving the hours swaps their card.
+     */
+    function watchSectionTabs() {
+        const tabs = document.querySelector(".section-tabs");
+        if (!tabs) {
+            return;
+        }
+        const links = [...tabs.querySelectorAll("a[href^='#']")];
+        let frame = 0;
+        const mark = () => {
+            frame = 0;
+            const line = tabs.getBoundingClientRect().bottom + 24;
+            const atEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+            let current = links[0];
+            links.forEach(link => {
+                const section = document.getElementById(link.hash.slice(1));
+                if (section && (section.getBoundingClientRect().top <= line || atEnd && link === links.at(-1))) {
+                    current = link;
+                }
+            });
+            links.forEach(link => link.classList.toggle("current", link === current));
+        };
+        window.addEventListener("scroll", () => frame ||= requestAnimationFrame(mark), {passive: true});
+        mark();
+    }
+
+    /* While the pointer is over a day's bar, a little time label shows where a drag would start. */
+    document.addEventListener("pointermove", event => {
+        const track = event.target.closest?.("#weekly-hours .hours-track");
+        document.querySelectorAll("#weekly-hours .hours-cursor").forEach(cursor => {
+            if (cursor.parentElement !== track || hoursDrag || event.target.closest(".hours-seg")) {
+                cursor.remove();
+            }
+        });
+        if (!track || hoursDrag || event.target.closest(".hours-seg") || event.pointerType === "touch") {
+            return;
+        }
+        const minute = snap(minuteAt(track, event.clientX));
+        let cursor = track.querySelector(".hours-cursor");
+        if (!cursor) {
+            cursor = document.createElement("span");
+            cursor.className = "hours-cursor";
+            cursor.setAttribute("aria-hidden", "true");
+            track.appendChild(cursor);
+        }
+        cursor.style.insetInlineStart = ((minute - BAR_START) / (BAR_END - BAR_START) * 100) + "%";
+        cursor.dataset.time = timeLabel(minute);
+    });
+
     document.addEventListener("DOMContentLoaded", () => {
         markTheme();
         markSidebar();
         initToasts();
         landOnFocusDay();
+        watchSectionTabs();
+        watchDirtyForms();
+        countUp();
+        // The parts of the page have risen into place (app.css): from here on nothing replays its entrance.
+        setTimeout(() => root.removeAttribute("data-enter"), 1800);
     });
     document.addEventListener("htmx:afterSettle", initToasts);
 })();

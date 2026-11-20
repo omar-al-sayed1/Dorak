@@ -131,7 +131,7 @@ class AppointmentFormIT extends DashboardTest {
     @Test
     void booksANewPatientTypedAsALocalNumber() {
         assertThat(book("09:30", "", "70 123 456", "Karim", "en"))
-                .hasStatus3xxRedirection().headers().hasValue("Location", "/?date=" + DATE);
+                .hasStatus3xxRedirection().headers().hasValue("Location", "/app/?date=" + DATE);
 
         Patient karim = patients.findByClinicIdAndPhoneE164OrderById(clinic.getId(), "+96170123456").getFirst();
         assertThat(karim.getName()).isEqualTo("Karim");

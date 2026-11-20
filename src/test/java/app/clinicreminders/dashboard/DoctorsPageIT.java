@@ -6,6 +6,7 @@ import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 import app.clinicreminders.clinic.Clinic;
 import app.clinicreminders.clinic.ClinicRepository;
@@ -14,7 +15,9 @@ import app.clinicreminders.patient.Patient;
 import app.clinicreminders.scheduling.Doctor;
 import app.clinicreminders.scheduling.DoctorRepository;
 import app.clinicreminders.scheduling.ScheduleRule;
+import app.clinicreminders.scheduling.ScheduleRuleRepository;
 import app.clinicreminders.scheduling.SlotService;
+import app.clinicreminders.scheduling.TimeWindow;
 import app.clinicreminders.staff.StaffPrincipal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,6 +35,9 @@ class DoctorsPageIT extends DashboardTest {
 
     @Autowired
     SlotService slots;
+
+    @Autowired
+    ScheduleRuleRepository rules;
 
     private Clinic clinic;
     private Doctor doctor;
@@ -93,6 +99,53 @@ class DoctorsPageIT extends DashboardTest {
                 .hasRedirectedUrl("/doctors/" + doctor.getId());
 
         assertThat(slots.freeSlots(clinic.getId(), doctor.getId(), WEDNESDAY, WEDNESDAY)).isEmpty();
+    }
+
+    @Test
+    void aBlockOfHoursDraggedOnTheChartMovesOrStretches() {
+        ScheduleRule rule = data.weekly(doctor, DayOfWeek.WEDNESDAY, "09:00", "10:00");
+        assertThat(get(staff, "/doctors/{id}", doctor.getId())).bodyText()
+                .contains("id=\"weekly-hours\"", "data-rule=\"" + rule.getId() + "\"", "data-start=\"09:00\"",
+                        "data-day=\"WEDNESDAY\"", "Copy the hours of Wednesday to");
+
+        assertThat(post(staff, "/doctors/{id}/hours/{rule}", doctor.getId(), rule.getId())
+                .param("start", "13:00").param("end", "15:30"))
+                .hasRedirectedUrl("/doctors/" + doctor.getId()).flash().containsEntry("notice", "notice.saved");
+
+        assertThat(slots.freeSlots(clinic.getId(), doctor.getId(), WEDNESDAY, WEDNESDAY)).hasSize(5);
+        assertThat(post(staff, "/doctors/{id}/hours/{rule}", doctor.getId(), rule.getId())
+                .param("start", "15:00").param("end", "14:00")).flash().containsEntry("error", "error.hours");
+        assertThat(rules.findByClinicIdAndDoctorId(clinic.getId(), doctor.getId())).singleElement()
+                .extracting(ScheduleRule::window).isEqualTo(new TimeWindow(LocalTime.of(13, 0), LocalTime.of(15, 30)));
+    }
+
+    @Test
+    void onAPhoneTheHoursAreAListOfDaysWithTheirTotals() {
+        data.weekly(doctor, DayOfWeek.WEDNESDAY, "09:00", "12:00");
+        data.weekly(doctor, DayOfWeek.WEDNESDAY, "16:00", "17:30");
+
+        assertThat(get(staff, "/doctors/{id}", doctor.getId())).bodyText()
+                .contains("class=\"hours-days\"", "4 h 30 min", "data-preset=\"09:00-13:00\"", "Morning",
+                        "class=\"section-tabs\"", "href=\"#days-off\"", "href=\"#profile\"", "id=\"days-off\"")
+                .as("a closed day says so").contains("class=\"hd closed\"");
+        assertThat(get(doctorLoginOf(doctor), "/doctors/{id}", doctor.getId())).bodyText()
+                .as("their own page: hours and days off").contains("href=\"#days-off\"").doesNotContain("href=\"#profile\"");
+    }
+
+    @Test
+    void aDaysHoursCanBeCopiedToOtherDays() {
+        data.weekly(doctor, DayOfWeek.WEDNESDAY, "09:00", "12:00");
+        data.weekly(doctor, DayOfWeek.WEDNESDAY, "16:00", "18:00");
+        data.weekly(doctor, DayOfWeek.FRIDAY, "10:00", "11:00");
+
+        assertThat(post(staff, "/doctors/{id}/hours/copy", doctor.getId())
+                .param("from", "WEDNESDAY").param("to", "MONDAY").param("to", "FRIDAY").param("to", "WEDNESDAY"))
+                .hasRedirectedUrl("/doctors/" + doctor.getId()).flash().containsEntry("notice", "notice.hours-copied");
+
+        assertThat(rules.findByClinicIdAndDoctorId(clinic.getId(), doctor.getId()).stream()
+                .map(rule -> rule.getDayOfWeek() + " " + rule.window().start())
+                .sorted())
+                .containsExactly("FRIDAY 09:00", "FRIDAY 16:00", "MONDAY 09:00", "MONDAY 16:00", "WEDNESDAY 09:00", "WEDNESDAY 16:00");
     }
 
     @Test
@@ -221,6 +274,10 @@ class DoctorsPageIT extends DashboardTest {
         assertThat(post(staff, "/doctors/{id}/hours", theirs.getId())
                 .param("day", "MONDAY").param("start", "09:00").param("end", "10:00")).hasStatus(404);
         assertThat(post(staff, "/doctors/{id}/hours/{rule}/delete", doctor.getId(), theirRule.getId())).hasStatus(404);
+        assertThat(post(staff, "/doctors/{id}/hours/{rule}", doctor.getId(), theirRule.getId())
+                .param("start", "10:00").param("end", "11:00")).hasStatus(404);
+        assertThat(post(staff, "/doctors/{id}/hours/copy", theirs.getId()).param("from", "MONDAY").param("to", "TUESDAY"))
+                .hasStatus(404);
         assertThat(post(staff, "/doctors/{id}/days/{day}/delete", doctor.getId(), theirDay)).hasStatus(404);
         assertThat(doctors.findByIdAndClinicId(theirs.getId(), other.getId()).orElseThrow().getDisplayName())
                 .isEqualTo("Dr. Elsewhere");

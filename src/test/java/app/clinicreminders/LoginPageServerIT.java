@@ -35,4 +35,15 @@ class LoginPageServerIT {
             assertThat(html).as(page).contains("name=\"username\"", "name=\"password\"", "name=\"_csrf\"", "</html>");
         }
     }
+
+    @Test
+    void theTermsOfServiceAreOpenToEveryone() {
+        RestClient client = RestClient.create("http://localhost:" + port);
+        assertThat(client.get().uri("/login").retrieve().body(String.class)).contains("href=\"/terms\"");
+
+        String arabic = client.get().uri("/terms").retrieve().body(String.class);
+        assertThat(arabic).as("Arabic by default, as the sign-in page")
+                .contains("dir=\"rtl\"", "id=\"terms-1\"", "id=\"terms-11\"", "href=\"/login\"", "</html>")
+                .as("every section has its text").doesNotContain("??");
+    }
 }

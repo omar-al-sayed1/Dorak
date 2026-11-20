@@ -180,6 +180,27 @@
             </form>
         </section>
     </div>
+
+    <!--/* The operator types a word first (the button stays off until then, app.js), then confirms in a dialog. */-->
+    <section class="card delete-clinic">
+        <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>
+            <h2 th:text="#{operator.clinic.delete}">Delete this clinic</h2></div>
+        <p th:text="#{operator.clinic.delete.what}">Everything of this clinic is deleted for good and cannot be brought back.</p>
+        <div class="tags">
+            <span class="tag" th:text="#{operator.clinic.delete.logins(${contents.logins() + ''})}">Logins: 2</span>
+            <span class="tag" th:text="#{operator.clinic.delete.doctors(${contents.doctors() + ''})}">Doctors: 1</span>
+            <span class="tag" th:text="#{operator.clinic.delete.patients(${contents.patients() + ''})}">Patients: 120</span>
+            <span class="tag" th:text="#{operator.clinic.delete.appointments(${contents.appointments() + ''})}">Appointments: 900</span>
+        </div>
+        <form method="post" th:action="@{/operator/clinics/{id}/delete(id=${clinic.id})}" class="row"
+              th:data-confirm="#{operator.clinic.delete.confirm(${clinic.name})}">
+            <label><span th:utext="#{operator.clinic.delete.type(#{operator.clinic.delete.word})}">Type delete to confirm</span>
+                <input type="text" name="confirm" autocomplete="off" autocapitalize="off" spellcheck="false" required
+                       th:attr="data-type-to-confirm=#{operator.clinic.delete.word}" data-also="delete"></label>
+            <button type="submit" class="danger"><svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>
+                <span th:text="#{operator.clinic.delete.button}">Delete clinic</span></button>
+        </form>
+    </section>
 </main>
 </body>
 </html>

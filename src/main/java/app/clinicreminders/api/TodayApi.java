@@ -3,7 +3,10 @@ package app.clinicreminders.api;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 
+import app.clinicreminders.balance.Balances;
+import app.clinicreminders.balance.Balances.VisitMoney;
 import app.clinicreminders.dashboard.Avatars;
 import app.clinicreminders.dashboard.ClinicContext;
 import app.clinicreminders.dashboard.ClinicContext.Ctx;
@@ -39,20 +42,26 @@ class TodayApi {
     record DoctorDay(long id, String name, String initials, int hue, long active, int nowIndex, List<Row> rows) {
     }
 
-    /** @param patientName null once the patient was deleted */
+    /**
+     * @param patientName null once the patient was deleted
+     * @param money       the visit's fee and payments (Balance); null for a doctor's login, or before any
+     */
     record Row(long id, String time, @Nullable String patientName, @Nullable String patientPhone, String initials,
                int hue, String status, String source, boolean cancelled, boolean cancelledByPatient, boolean past,
-               boolean canArrive, boolean canNoShow, boolean canCancel, boolean canReschedule) {
+               boolean canArrive, boolean canNoShow, boolean canCancel, boolean canReschedule, @Nullable VisitMoney money,
+               @Nullable Long patientId) {
     }
 
     private final ClinicContext context;
     private final TodayList list;
     private final Avatars avatars;
+    private final Balances balances;
 
-    TodayApi(ClinicContext context, TodayList list, Avatars avatars) {
+    TodayApi(ClinicContext context, TodayList list, Avatars avatars, Balances balances) {
         this.context = context;
         this.list = list;
         this.avatars = avatars;
+        this.balances = balances;
     }
 
     /** @param date the clinic's today without it */
@@ -63,19 +72,22 @@ class TodayApi {
         LocalDate day = date != null ? date : ctx.today();
         TodayList.Day data = list.day(ctx, day);
         long daysAway = ChronoUnit.DAYS.between(ctx.today(), day);
+        // Money is the front desk's: a doctor's login sees none.
+        Map<Long, VisitMoney> money = ctx.isDoctor() ? Map.of() : balances.forAppointments(ctx.clinicId(),
+                data.doctors().stream().flatMap(d -> d.rows().stream()).map(TodayList.Row::id).toList());
         return new Today(day.toString(), ctx.formats().date(day), data.today(), TodayController.relativeDayKey(daysAway),
                 String.valueOf(Math.abs(daysAway)), day.minusDays(1).toString(), day.plusDays(1).toString(),
-                data.nowTime(), data.stats(), data.doctors().stream().map(this::doctorDay).toList());
+                data.nowTime(), data.stats(), data.doctors().stream().map(d -> doctorDay(d, money)).toList());
     }
 
-    private DoctorDay doctorDay(TodayList.DoctorDay day) {
+    private DoctorDay doctorDay(TodayList.DoctorDay day, Map<Long, VisitMoney> money) {
         return new DoctorDay(day.id(), day.name(), avatars.initials(day.name()), avatars.hue(day.name()), day.active(),
-                day.nowIndex(), day.rows().stream().map(this::row).toList());
+                day.nowIndex(), day.rows().stream().map(row -> row(row, money.get(row.id()))).toList());
     }
 
-    private Row row(TodayList.Row row) {
+    private Row row(TodayList.Row row, @Nullable VisitMoney money) {
         return new Row(row.id(), row.time(), row.patientName(), row.patientPhone(), avatars.initials(row.patientName()),
                 avatars.hue(row.patientName()), row.status(), row.source(), row.cancelled(), row.cancelledByPatient(),
-                row.past(), row.canArrive(), row.canNoShow(), row.canCancel(), row.canReschedule());
+                row.past(), row.canArrive(), row.canNoShow(), row.canCancel(), row.canReschedule(), money, row.patientId());
     }
 }

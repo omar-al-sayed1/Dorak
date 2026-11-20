@@ -2,66 +2,171 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{dashboard/layout :: page(~{::title}, 'operator', ~{::main})}">
 <head><title th:text="#{operator.clinics}">Clinics</title></head>
 <body>
-<main class="container">
+<main class="container" hx-history="false">
     <header class="page-head">
         <div>
             <div class="eyebrow"><svg class="icon" aria-hidden="true"><use href="#i-building"/></svg><span th:text="#{operator.title}">Operator</span></div>
             <h1 th:text="#{operator.clinics}">Clinics</h1>
         </div>
+        <div class="head-actions">
+            <button type="button" class="primary" data-dialog-open="add-clinic">
+                <svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg><span th:text="#{operator.clinic.add}">Add a clinic</span></button>
+        </div>
     </header>
 
-    <div class="card empty" th:if="${clinics.isEmpty()}">
-        <span class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#i-building"/></svg></span>
-        <strong th:text="#{operator.clinics.none}">No clinics yet.</strong>
+    <!--/*
+      A clinic deleted in the last few minutes can still be brought back: a small message with Undo,
+      there (also after a reload) until closed or until the time to undo is over.
+    */-->
+    <div class="undo-toasts" th:unless="${deleted.isEmpty()}" aria-live="polite">
+        <div class="toast sticky" role="status" th:each="d : ${deleted}">
+            <svg class="icon toast-icon" aria-hidden="true"><use href="#i-trash"/></svg>
+            <p><span th:text="#{operator.clinic.deleted(${d.name()})}">Dr. Saab was deleted.</span>
+                <span class="toast-sub" th:text="#{operator.clinic.deleted.undo-for(${undoMinutes + ''})}">Undo within 10 minutes.</span></p>
+            <form method="post" th:action="@{/operator/clinics/restore/{token}(token=${d.token()})}">
+                <button type="submit" class="toast-undo" th:text="#{action.undo}">Undo</button>
+            </form>
+            <button type="button" class="toast-close" th:aria-label="#{toast.close}"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg></button>
+        </div>
     </div>
 
-    <div class="clinic-cards" th:unless="${clinics.isEmpty()}">
-        <article class="clinic-card" th:each="c : ${clinics}">
-            <header>
-                <span class="avatar lg square-avatar" th:style="'--hue:' + ${@avatars.hue(c.name())}" th:text="${@avatars.initials(c.name())}">DD</span>
-                <div class="grow">
-                    <h2 th:text="${c.name()}">Dr. Demo</h2>
-                    <span class="chip" th:classappend="${c.connected()} ? 'chip-CONFIRMED' : 'chip-CANCELLED'"
-                          th:text="${c.connected()} ? #{operator.connected.yes} : #{operator.connected.no}">Connected</span>
+    <!--/* A plain GET form, like the operator's patients: the address says what is shown. */-->
+    <form method="get" th:action="@{/operator}" class="card filter-panel" role="search" th:if="${total > 0}"
+          th:hx-get="@{/operator}" hx-trigger="input delay:250ms, search" hx-target="#clinic-results"
+          hx-select="#clinic-results" hx-swap="outerHTML" hx-push-url="true" hx-indicator=".filter-search, #clinic-results" data-clean-query>
+        <div class="big-search filter-search">
+            <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+            <input type="search" name="q" th:value="${q}" th:placeholder="#{operator.clinics.search}"
+                   th:aria-label="#{operator.clinics.search}" autocomplete="off" dir="auto" data-key="slash">
+            <span class="htmx-indicator" aria-hidden="true"></span>
+            <kbd class="kbd-hint">/</kbd>
+        </div>
+        <th:block th:replace="~{this :: quick(${quick}, ${quickCounts})}"></th:block>
+        <div class="filter-grid">
+            <label><span th:text="#{operator.clinics.whatsapp}">WhatsApp</span>
+                <select name="whatsapp">
+                    <option value="" th:text="#{operator.patients.any}">Any</option>
+                    <option value="connected" th:selected="${whatsapp == 'connected'}" th:text="#{operator.connected.yes}">Connected</option>
+                    <option value="not-connected" th:selected="${whatsapp == 'not-connected'}" th:text="#{operator.connected.no}">Not connected</option>
+                </select></label>
+            <label><span th:text="#{operator.setup}">Setup</span>
+                <select name="setup">
+                    <option value="" th:text="#{operator.patients.any}">Any</option>
+                    <option value="done" th:selected="${setup == 'done'}" th:text="#{operator.clinics.setup.done}">Finished</option>
+                    <option value="unfinished" th:selected="${setup == 'unfinished'}" th:text="#{operator.clinics.setup.unfinished}">Not finished</option>
+                </select></label>
+            <label><span th:text="#{billing.title}">Billing</span>
+                <select name="billed">
+                    <option value="" th:text="#{operator.patients.any}">Any</option>
+                    <option value="paying" th:selected="${billed == 'paying'}" th:text="#{operator.clinics.billed.paying}">Paid up</option>
+                    <option value="late" th:selected="${billed == 'late'}" th:text="#{operator.clinics.billed.late}">Late or paused</option>
+                </select></label>
+        </div>
+        <noscript><button type="submit" class="primary" th:text="#{operator.patients.apply}">Apply</button></noscript>
+    </form>
+
+    <section id="clinic-results" aria-live="polite">
+        <div class="card empty" th:if="${total == 0}">
+            <span class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#i-building"/></svg></span>
+            <strong th:text="#{operator.clinics.none}">No clinics yet.</strong>
+            <button type="button" class="primary" data-dialog-open="add-clinic">
+                <svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg><span th:text="#{operator.clinic.add}">Add a clinic</span></button>
+        </div>
+
+        <div class="results-bar" th:if="${total > 0}">
+            <p class="results-note" th:text="#{operator.clinics.count(${clinics.size() + ''}, ${total + ''})}">3 of 5 clinics</p>
+            <a class="clear-filters" th:if="${filtered}" th:href="@{/operator}" th:text="#{operator.patients.clear}">Clear all</a>
+        </div>
+
+        <div class="card empty" th:if="${total > 0 and clinics.isEmpty()}">
+            <span class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg></span>
+            <strong th:text="#{operator.clinics.no-match}">No clinic matches.</strong>
+            <a class="button sm" th:href="@{/operator}" th:text="#{operator.patients.clear}">Clear all</a>
+        </div>
+
+        <div class="clinic-cards" th:unless="${clinics.isEmpty()}">
+            <article class="clinic-card" th:each="c : ${clinics}">
+                <header>
+                    <span class="avatar lg square-avatar" th:style="'--hue:' + ${@avatars.hue(c.name())}" th:text="${@avatars.initials(c.name())}">DD</span>
+                    <div class="grow">
+                        <h2 th:text="${c.name()}">Dr. Demo</h2>
+                        <span class="chip" th:classappend="${c.connected()} ? 'chip-CONFIRMED' : 'chip-CANCELLED'"
+                              th:text="${c.connected()} ? #{operator.connected.yes} : #{operator.connected.no}">Connected</span>
+                        <a class="chip" th:if="${c.billing() != null}" th:classappend="'bill-' + ${c.billing()}"
+                           th:href="@{/operator/clinics/{id}/billing(id=${c.id()})}" th:text="#{'billing.status.' + ${c.billing()}}">Active</a>
+                    </div>
+                </header>
+                <div class="tags">
+                    <span class="tag" dir="ltr"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg><span th:text="${c.timezone()}">Asia/Beirut</span></span>
+                    <span class="tag" th:text="#{'language.' + ${c.language()}}">Arabic</span>
+                    <span class="tag"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>
+                        <span th:text="#{settings.doctor.minutes(${c.slotMinutes() + ''})}">20 min</span></span>
+                    <span class="tag"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>
+                        <span th:text="#{operator.login-count(${c.logins() + ''})}">2 logins</span></span>
                 </div>
-            </header>
-            <div class="tags">
-                <span class="tag" dir="ltr"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg><span th:text="${c.timezone()}">Asia/Beirut</span></span>
-                <span class="tag" th:text="#{'language.' + ${c.language()}}">Arabic</span>
-                <span class="tag"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>
-                    <span th:text="#{settings.doctor.minutes(${c.slotMinutes() + ''})}">20 min</span></span>
-                <span class="tag"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>
-                    <span th:text="#{operator.login-count(${c.logins() + ''})}">2 logins</span></span>
-            </div>
-            <div>
-                <div class="progress-label"><span th:text="#{operator.setup}">Setup</span>
-                    <span th:text="#{operator.ready(${c.ready() + ''}, ${steps + ''})}">4 of 5</span></div>
-                <div class="progress"><span th:style="'width:' + ${c.readyPercent()} + '%'"></span></div>
-            </div>
-            <a class="button" th:href="@{/operator/clinics/{id}(id=${c.id()})}">
-                <span th:text="#{operator.clinic.open}">Open</span><svg class="icon flip-rtl" aria-hidden="true"><use href="#i-chevron-right"/></svg></a>
-        </article>
-    </div>
-
-    <section class="card">
-        <div class="section-head"><h2 th:text="#{operator.clinic.add}">Add a clinic</h2></div>
-        <form method="post" th:action="@{/operator/clinics}" class="row">
-            <label><span th:text="#{operator.clinic.name}">Name</span>
-                <input type="text" name="name" maxlength="100" required></label>
-            <label><span th:text="#{operator.clinic.timezone}">Timezone</span>
-                <input type="text" name="timezone" th:value="${defaultZone}" dir="ltr" required></label>
-            <label><span th:text="#{operator.clinic.language}">Patients' language</span>
-                <select name="defaultLanguage">
-                    <option value="ar" th:text="#{language.ar}">Arabic</option>
-                    <option value="en" th:text="#{language.en}">English</option>
-                </select>
-            </label>
-            <label><span th:text="#{operator.clinic.slot}">Appointment length (minutes)</span>
-                <input type="number" name="slotMinutes" value="20" min="5" max="240" step="5" required></label>
-            <button type="submit" class="primary"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>
-                <span th:text="#{action.add}">Add</span></button>
-        </form>
+                <div>
+                    <div class="progress-label"><span th:text="#{operator.setup}">Setup</span>
+                        <span th:text="#{operator.ready(${c.ready() + ''}, ${steps + ''})}">4 of 5</span></div>
+                    <div class="progress"><span th:style="'width:' + ${c.readyPercent()} + '%'"></span></div>
+                </div>
+                <a class="button" th:href="@{/operator/clinics/{id}(id=${c.id()})}">
+                    <span th:text="#{operator.clinic.open}">Open</span><svg class="icon flip-rtl" aria-hidden="true"><use href="#i-chevron-right"/></svg></a>
+            </article>
+        </div>
     </section>
+
+    <dialog id="add-clinic" class="modal modal-form">
+        <form method="post" th:action="@{/operator/clinics}">
+            <div class="modal-form-body">
+                <h2 th:text="#{operator.clinic.add}">Add a clinic</h2>
+                <label><span th:text="#{operator.clinic.name}">Name</span>
+                    <input type="text" name="name" maxlength="100" required autofocus></label>
+                <label><span th:text="#{operator.clinic.timezone}">Timezone</span>
+                    <input type="text" name="timezone" th:value="${defaultZone}" dir="ltr" required></label>
+                <label><span th:text="#{operator.clinic.language}">Patients' language</span>
+                    <select name="defaultLanguage">
+                        <option value="ar" th:text="#{language.ar}">Arabic</option>
+                        <option value="en" th:text="#{language.en}">English</option>
+                    </select>
+                </label>
+                <label><span th:text="#{operator.clinic.slot}">Appointment length (minutes)</span>
+                    <input type="number" name="slotMinutes" value="20" min="5" max="240" step="5" required></label>
+            </div>
+            <div class="modal-actions">
+                <button type="button" data-dialog-close th:text="#{action.cancel}">Cancel</button>
+                <button type="submit" class="primary"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>
+                    <span th:text="#{action.add}">Add</span></button>
+            </div>
+        </form>
+    </dialog>
 </main>
+<!--/*
+  Quick filters, on the clinics page and on Billing: three cards the operator ticks, each with how
+  many clinics it would show. They sit inside the page's filter form, so they combine with the search
+  and the other filters (ClinicSignals).
+*/-->
+<div th:fragment="quick(quick, counts)" class="signal-cards" role="group" th:aria-label="#{signals.title}">
+    <label class="signal-card soon" th:classappend="${counts.soon() == 0} ? 'none'">
+        <input type="checkbox" name="soon" value="true" th:checked="${quick.soon()}">
+        <span class="signal-icon"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg></span>
+        <span class="signal-text"><strong th:text="#{signals.soon}">Subscription ends soon</strong>
+            <span th:text="#{signals.soon.hint}">Payment due within 7 days</span></span>
+        <span class="signal-count" th:text="${counts.soon()}">2</span>
+    </label>
+    <label class="signal-card unpaid" th:classappend="${counts.unpaid() == 0} ? 'none'">
+        <input type="checkbox" name="unpaid" value="true" th:checked="${quick.unpaid()}">
+        <span class="signal-icon"><svg class="icon" aria-hidden="true"><use href="#i-wallet"/></svg></span>
+        <span class="signal-text"><strong th:text="#{signals.unpaid}">Never paid</strong>
+            <span th:text="#{signals.unpaid.hint}">No payment recorded yet</span></span>
+        <span class="signal-count" th:text="${counts.unpaid()}">3</span>
+    </label>
+    <label class="signal-card quiet" th:classappend="${counts.quiet() == 0} ? 'none'">
+        <input type="checkbox" name="quiet" value="true" th:checked="${quick.quiet()}">
+        <span class="signal-icon"><svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg></span>
+        <span class="signal-text"><strong th:text="#{signals.quiet}">Gone quiet</strong>
+            <span th:text="#{signals.quiet.hint}">No booking in the last 14 days</span></span>
+        <span class="signal-count" th:text="${counts.quiet()}">1</span>
+    </label>
+</div>
 </body>
 </html>

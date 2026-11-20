@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import { logOut } from "./api";
 import { useT } from "./i18n";
@@ -34,14 +34,18 @@ export function Shell({ children }: { children: ReactNode }) {
         { key: "operator", label: t("nav.clinics"), icon: "building", href: "/operator" },
         { key: "operator-patients", label: t("operator.patients.title"), icon: "users", href: "/operator/patients" },
         { key: "operator-report", label: t("nav.report"), icon: "chart", href: "/operator/report" },
+        { key: "operator-billing", label: t("nav.billing"), icon: "wallet", href: "/operator/billing" },
         { key: "operator-rates", label: t("nav.rates"), icon: "message", href: "/operator/rates" },
       ]
     : [
         { key: "today", label: t("nav.today"), icon: "today", to: "/" },
         { key: "week", label: t("nav.week"), icon: "week", href: "/week" },
-        { key: "patients", label: t("nav.patients"), icon: "users", href: "/patients" },
+        { key: "patients", label: t("nav.patients"), icon: "users", to: "/patients" },
         // Phones: in the account menu instead, so the bottom bar keeps five items at most.
         { key: "report", label: t("nav.report"), icon: "chart", href: "/report", className: "nav-report" },
+        ...(session.doctorId === null
+          ? [{ key: "balance", label: t("nav.balance"), icon: "wallet", to: "/balance", className: "nav-report" }]
+          : []),
         ...(session.doctorId !== null
           ? [{ key: "doctors", label: t("nav.my-hours"), icon: "clock", href: `/doctors/${session.doctorId}` }]
           : [
@@ -55,25 +59,49 @@ export function Shell({ children }: { children: ReactNode }) {
     setCollapsed(!collapsed);
   };
 
+  // The lit shape behind the current page's item: measured, so it can slide to the next one (app.css, .nav-glider).
+  const nav = useRef<HTMLElement>(null);
+  const [glider, setGlider] = useState<{ y: number; h: number } | null>(null);
+  useLayoutEffect(() => {
+    const place = () => {
+      const link = nav.current?.querySelector<HTMLElement>("a.active");
+      setGlider(link && link.offsetHeight > 0 ? { y: link.offsetTop, h: link.offsetHeight } : null);
+    };
+    place();
+    window.addEventListener("resize", place);
+    void document.fonts?.ready.then(place);
+    return () => window.removeEventListener("resize", place);
+  }, [active, collapsed, items.length]);
+
   return (
     <>
       <IconSprite />
       <div className="shell">
         <aside className="sidebar" id="sidebar">
-          <Link className="brand" to="/" title={session.clinicName ?? t("app.name")}>
-            <span className="brand-mark"><Icon name="mark" /></span>
-            <span className="brand-text">
-              <span className="brand-name">{session.clinicName ?? t("app.name")}</span>
-              <span className="brand-sub">{t("app.name")}</span>
-            </span>
-          </Link>
-          <button type="button" className="side-toggle" onClick={toggleSidebar} aria-controls="sidebar"
-                  aria-expanded={!collapsed} title={t(collapsed ? "nav.expand" : "nav.collapse")}
-                  aria-label={t(collapsed ? "nav.expand" : "nav.collapse")}>
-            <Icon name="chevron-left" flip />
-          </button>
+          <div className="side-head">
+            <Link className="brand" to="/" title={session.clinicName ?? t("app.name")}>
+              <img className="brand-logo" src="/img/dorak-mark.png" alt="" width={40} height={40} />
+              <span className="brand-text">
+                <span className="brand-name">{session.clinicName ?? t("app.name")}</span>
+                <span className="brand-sub">{t("app.name")}</span>
+              </span>
+            </Link>
+            <button type="button" className="side-toggle" onClick={toggleSidebar} aria-controls="sidebar"
+                    aria-expanded={!collapsed} aria-label={t(collapsed ? "nav.expand" : "nav.collapse")}
+                    data-tip={t(collapsed ? "nav.expand" : "nav.collapse")} aria-keyshortcuts="[">
+              <svg className="icon flip-rtl" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+                <path d="M9.5 4.5v15" />
+                <path className="toggle-arrow" d="M16 9.5l-2.5 2.5 2.5 2.5" />
+              </svg>
+            </button>
+          </div>
 
-          <nav className="side-nav" aria-label={t("app.name")}>
+          <nav className={glider ? "side-nav has-glider" : "side-nav"} aria-label={t("app.name")} ref={nav}>
+            {glider && (
+              <span className="nav-glider" aria-hidden="true"
+                    style={{ ["--y" as string]: `${glider.y}px`, ["--h" as string]: `${glider.h}px` }} />
+            )}
             <span className="nav-label">{t(session.clinicId === null ? "operator.title" : "nav.section")}</span>
             {items.map((item) => (
               <NavLink key={item.key} item={item} active={active === item.key} />
@@ -87,9 +115,31 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           </div>
         </aside>
-        <div className="content">{children}</div>
+        <div className="content">
+          <BillingBanner />
+          {children}
+        </div>
       </div>
     </>
+  );
+}
+
+/** The clinic's payment for the service is near or late: a bar across the page, as on the classic pages (layout.html). */
+function BillingBanner() {
+  const t = useT();
+  const notice = useSession().billing;
+  if (!notice) {
+    return null;
+  }
+  const text = t(`billing.banner.${notice.status}`, notice.dueOn, notice.days);
+  const className = `bill-banner is-${notice.status}`;
+  return notice.owner ? (
+    <a className={className} href="/billing" role="status">
+      <Icon name="wallet" /><span className="grow">{text}</span>
+      <span className="go"><span>{t("billing.banner.link")}</span><Icon name="chevron-right" flip /></span>
+    </a>
+  ) : (
+    <div className={className} role="status"><Icon name="wallet" /><span className="grow">{text}</span></div>
   );
 }
 
@@ -114,7 +164,7 @@ function Bell({ active }: { active: boolean }) {
   );
 }
 
-/** Theme, language, password, the old dashboard and logging out; on phones also Needs attention and Report. */
+/** Theme, language, password, the old dashboard and logging out; on phones also Needs attention, Report and Balance. */
 function AccountMenu({ active }: { active: string }) {
   const t = useT();
   const session = useSession();
@@ -163,6 +213,11 @@ function AccountMenu({ active }: { active: string }) {
             <a className={active === "report" ? "menu-report active" : "menu-report"} href="/report">
               <Icon name="chart" /><span>{t("nav.report")}</span>
             </a>
+            {session.doctorId === null && (
+              <Link className={active === "balance" ? "menu-report active" : "menu-report"} to="/balance">
+                <Icon name="wallet" /><span>{t("nav.balance")}</span>
+              </Link>
+            )}
             <hr className="menu-attention-rule" />
           </>
         )}
@@ -179,6 +234,7 @@ function AccountMenu({ active }: { active: string }) {
                 onClick={() => switchLanguage.mutate(other)}>
           <Icon name="globe" /><span>{t(`language.switch.${other}`)}</span>
         </button>
+        {session.role === "OWNER" && <a href="/billing"><Icon name="receipt" /><span>{t("nav.billing")}</span></a>}
         <a href="/account/password"><Icon name="key" /><span>{t("nav.password")}</span></a>
         <a href="/"><Icon name="monitor" /><span>{t("nav.classic")}</span></a>
         <hr />

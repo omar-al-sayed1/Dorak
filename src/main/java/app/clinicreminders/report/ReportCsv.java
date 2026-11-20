@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import app.clinicreminders.balance.Balances.MonthMoney;
+import app.clinicreminders.balance.PaymentMethod;
 import app.clinicreminders.report.MonthlyReport.DoctorFigures;
 import org.jspecify.annotations.Nullable;
 import org.springframework.context.MessageSource;
@@ -26,6 +28,11 @@ public final class ReportCsv {
     }
 
     public static String of(MonthlyReport report, MessageSource messages, Locale locale) {
+        return of(report, null, messages, locale);
+    }
+
+    /** @param money the month's fees and payments (Balance); null to leave them out (a doctor's report) */
+    public static String of(MonthlyReport report, @Nullable MonthMoney money, MessageSource messages, Locale locale) {
         List<List<String>> rows = new ArrayList<>();
         rows.add(List.of(text(messages, locale, "report.csv.clinic"), report.clinic()));
         rows.add(List.of(text(messages, locale, "report.csv.month"), report.month().month().toString()));
@@ -49,6 +56,17 @@ public final class ReportCsv {
             rows.add(List.of(text(messages, locale, "report.total"), String.valueOf(report.messagesSent()),
                     String.valueOf(report.messagesFailed()), usd(report.estimatedUsd()),
                     String.valueOf(report.messagesUnpriced())));
+        }
+        if (money != null) {
+            rows.add(List.of());
+            rows.add(List.of(text(messages, locale, "report.money")));
+            rows.add(List.of(text(messages, locale, "report.money.charged"), usd(money.charged())));
+            rows.add(List.of(text(messages, locale, "report.money.collected"), usd(money.collected())));
+            for (PaymentMethod method : PaymentMethod.values()) {
+                rows.add(List.of(text(messages, locale, "method." + method.name()),
+                        usd(money.byMethod().getOrDefault(method, java.math.BigDecimal.ZERO))));
+            }
+            rows.add(List.of(text(messages, locale, "report.money.owed"), usd(money.owedNow())));
         }
         return BOM + rows.stream()
                 .map(row -> row.stream().map(ReportCsv::field).collect(Collectors.joining(",")))

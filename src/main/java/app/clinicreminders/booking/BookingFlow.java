@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import app.clinicreminders.billing.Billing;
 import app.clinicreminders.appointment.Appointment;
 import app.clinicreminders.appointment.AppointmentEvents.CancelledBy;
 import app.clinicreminders.appointment.AppointmentRepository;
@@ -140,12 +141,13 @@ class BookingFlow {
     private final BookingMessages messages;
     private final MessageLogRepository logs;
     private final ApplicationEventPublisher events;
+    private final Billing billing;
     private final Clock clock;
 
     BookingFlow(ConversationRepository conversations, ClinicRepository clinics, PatientRepository patients,
                 PatientService patientService, DoctorRepository doctors, AppointmentRepository appointments,
                 AppointmentService appointmentService, SlotService slots, BookingMessages messages,
-                MessageLogRepository logs, ApplicationEventPublisher events, Clock clock) {
+                MessageLogRepository logs, ApplicationEventPublisher events, Billing billing, Clock clock) {
         this.conversations = conversations;
         this.clinics = clinics;
         this.patients = patients;
@@ -157,6 +159,7 @@ class BookingFlow {
         this.messages = messages;
         this.logs = logs;
         this.events = events;
+        this.billing = billing;
         this.clock = clock;
     }
 
@@ -310,6 +313,9 @@ class BookingFlow {
 
         /** Book another time, after the clinic cancelled: that doctor's free days, or the doctors if they no longer take bookings. */
         Step rebook(BookingContext context, long doctorId) {
+            if (billing.paused(clinicId, LocalDate.ofInstant(now, zone))) {
+                return book(context);
+            }
             boolean bookable = doctors.findByIdAndClinicId(doctorId, clinicId)
                     .filter(Doctor::isActive)
                     .filter(doctor -> !doctor.isDeleted())
@@ -353,6 +359,10 @@ class BookingFlow {
         }
 
         private Step book(BookingContext context) {
+            // The clinic's subscription is long overdue (Billing): no new bookings; the desk is told to call.
+            if (billing.paused(clinicId, LocalDate.ofInstant(now, zone))) {
+                return callBack(context, messages.noDoctors(phone, language));
+            }
             List<Doctor> active = doctors.findByClinicIdOrderByDisplayName(clinicId).stream()
                     .filter(Doctor::isActive)
                     .toList();

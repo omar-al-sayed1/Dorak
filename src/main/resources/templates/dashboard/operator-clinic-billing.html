@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{dashboard/layout :: page(~{::title}, 'operator-billing', ~{::main})}">
+<head><title th:text="#{billing.title} + ' · ' + ${clinic.name}">Billing · Clinique Zahle</title></head>
+<body>
+<!--/*
+  One clinic's billing, for the operator: where it stands, recording a payment (pick how many months;
+  the amount follows), its subscription, and its invoices. Only the latest payment can be undone.
+*/-->
+<main class="container">
+    <a class="back-link" th:href="@{/operator/billing}">
+        <svg class="icon flip-rtl" aria-hidden="true"><use href="#i-chevron-left"/></svg><span th:text="#{billing.title}">Billing</span></a>
+    <header class="page-head">
+        <div class="appt-who">
+            <span class="avatar lg square-avatar" th:style="'--hue:' + ${hue}" th:text="${initials}">CZ</span>
+            <div>
+                <h1 th:text="${clinic.name}">Clinique Zahle</h1>
+                <div class="tags">
+                    <span class="chip" th:if="${standing != null}" th:classappend="'bill-' + ${standing.status()}"
+                          th:text="#{'billing.status.' + ${standing.status()}}">Active</span>
+                    <a class="tag" th:href="@{/operator/clinics/{id}(id=${clinic.id})}">
+                        <svg class="icon" aria-hidden="true"><use href="#i-building"/></svg><span th:text="#{billing.clinic-page}">Clinic setup</span></a>
+                </div>
+            </div>
+        </div>
+        <div class="head-actions" th:if="${remindUrl != null}">
+            <a class="button" th:href="${remindUrl}" target="_blank" rel="noopener" th:title="#{billing.remind.hint}">
+                <svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg><span th:text="#{billing.remind.long}">Remind on WhatsApp</span></a>
+        </div>
+    </header>
+
+    <!--/* Where it stands: the due day, large, over the runway. */-->
+    <section class="card bill-standing" th:if="${standing != null}" th:classappend="'is-' + ${standing.status()}">
+        <div class="bill-standing-top">
+            <div>
+                <span class="btile-label" th:text="${standing.daysLeft() > 0} ? #{billing.due-on} : #{billing.was-due-on}">Next payment due</span>
+                <strong class="bill-due" th:text="${standing.dueOn()}">1 December 2026</strong>
+                <span class="muted" th:if="${standing.daysLeft() > 0}" th:text="#{billing.days-left(${standing.daysLeft() + ''})}">in 12 days</span>
+                <span class="bill-late" th:if="${standing.daysLeft() <= 0 and standing.status() == 'overdue'}"
+                      th:text="#{billing.pauses-in(${standing.daysOverdue() + ''}, ${standing.graceLeft() + ''}, ${standing.pausesOn()})}">
+                    3 days late; new bookings pause in 11 days</span>
+                <span class="bill-late" th:if="${standing.status() == 'paused'}" th:text="#{billing.paused-since(${standing.pausesOn()})}">
+                    New bookings paused since 15 December 2026</span>
+            </div>
+            <div class="bill-next">
+                <span class="btile-label" th:text="#{billing.next-amount}">Next payment</span>
+                <strong dir="ltr" th:text="${standing.nextTotal()}">$135.00</strong>
+            </div>
+        </div>
+        <th:block th:replace="~{dashboard/operator-billing :: runway(${standing})}"></th:block>
+        <div class="runway-key">
+            <span th:text="${standing.periodStart()}">1 September 2026</span>
+            <span th:text="#{billing.key.due(${standing.dueOn()})}">Due 1 December 2026</span>
+            <span th:text="#{billing.key.pause(${standing.pausesOn()})}">Pause 16 December 2026</span>
+        </div>
+    </section>
+
+    <div class="grid-2">
+        <!--/* Record a payment: each card is a number of months with what it comes to. */-->
+        <section class="card" th:if="${subscription != null}">
+            <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-wallet"/></svg>
+                <h2 th:text="#{billing.record}">Record a payment</h2></div>
+            <form method="post" th:action="@{/operator/clinics/{id}/billing/payments(id=${clinic.id})}" class="stack">
+                <div class="quote-cards" role="radiogroup" th:aria-label="#{billing.record.months}">
+                    <label class="quote-card" th:each="q : ${quotes}">
+                        <input type="radio" name="months" th:value="${q.months()}" th:checked="${q.usual()}" required>
+                        <span class="quote-months" th:text="#{${'billing.months.' + q.months()}}">3 months</span>
+                        <strong dir="ltr" th:text="${q.total()}">$135.00</strong>
+                        <span class="muted small" th:text="#{billing.until(${q.until()})}">until 1 March 2027</span>
+                        <span class="quote-lines">
+                            <span class="quote-save" th:if="${q.discount()}"><th:block th:text="#{billing.line.discount}">Discount</th:block>
+                                <span dir="ltr" th:text="'−' + ${q.discount()}">−$15.00</span></span>
+                            <span th:if="${q.messageCosts()}"><th:block th:text="#{billing.line.messages}">Messages</th:block>
+                                <span dir="ltr" th:text="'+' + ${q.messageCosts()}">+$4.10</span></span>
+                        </span>
+                    </label>
+                </div>
+                <div class="pay-methods" role="radiogroup" th:aria-label="#{receipt.method}">
+                    <label class="pay-method-pick" th:each="m, it : ${methods}">
+                        <input type="radio" name="method" th:value="${m}" th:checked="${it.first}" required>
+                        <span th:text="#{'method.' + ${m}}">Cash</span></label>
+                </div>
+                <div class="form-grid">
+                    <label><span th:text="#{billing.record.amount}">Amount received (optional)</span>
+                        <span class="field-icon money-field"><span class="currency-mark">$</span>
+                            <input type="text" name="amount" inputmode="decimal" dir="ltr" autocomplete="off"></span>
+                        <span class="hint" th:text="#{billing.record.amount.hint}">Leave empty for exactly the amount above.</span></label>
+                    <label><span th:text="#{billing.record.reference}">Transfer reference</span>
+                        <input type="text" name="reference" maxlength="80" dir="ltr" autocomplete="off"></label>
+                    <label><span th:text="#{billing.record.paid-on}">Paid on</span>
+                        <input type="date" name="paidOn" th:value="${today}" th:max="${today}" required></label>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="primary"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
+                        <span th:text="#{billing.record.save}">Record payment</span></button>
+                </div>
+            </form>
+        </section>
+
+        <section class="card">
+            <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg>
+                <h2 th:text="#{billing.subscription}">Subscription</h2></div>
+            <form method="post" th:action="@{/operator/clinics/{id}/billing(id=${clinic.id})}" class="stack">
+                <div class="form-grid">
+                    <label><span th:text="#{billing.period}">Usually pays</span>
+                        <select name="periodMonths">
+                            <option th:each="p : ${periods}" th:value="${p}" th:selected="${subscription != null and subscription.periodMonths == p}"
+                                    th:text="#{${'billing.months.' + p}}">3 months</option>
+                        </select></label>
+                    <label><span th:text="#{billing.paid-until}">Next payment due</span>
+                        <input type="date" name="paidUntil" required th:value="${subscription != null} ? ${subscription.paidUntil} : ${defaultDue}"></label>
+                    <label><span th:text="#{billing.contact}">Billing contact (WhatsApp)</span>
+                        <input type="tel" name="contactPhone" dir="ltr" autocomplete="off" th:value="${subscription?.contactPhone}"></label>
+                </div>
+                <!--/* Empty fields follow the general plan, shown as each field's placeholder. */-->
+                <fieldset class="own-terms-set">
+                    <legend th:text="#{billing.own}">This clinic's own terms</legend>
+                    <p class="hint"><th:block th:text="#{billing.own.hint}">Leave a field empty to use the general plan.</th:block>
+                        <a th:href="@{/operator/billing} + '#plan'" th:text="#{billing.plan}">General plan</a></p>
+                    <div class="form-grid">
+                        <label><span th:text="#{billing.fee}">Monthly fee</span>
+                            <span class="field-icon money-field"><span class="currency-mark">$</span>
+                                <input type="text" name="monthlyFee" inputmode="decimal" dir="ltr" autocomplete="off"
+                                       th:placeholder="${plan.monthlyFeeUsd()}" th:value="${subscription?.ownMonthlyFeeUsd}"></span></label>
+                        <label><span th:text="#{billing.discount6}">Discount for paying 6 months (%)</span>
+                            <input type="number" name="discount6" min="0" max="100" dir="ltr"
+                                   th:placeholder="${plan.discount6Percent()}" th:value="${subscription?.ownDiscount6Percent}"></label>
+                        <label><span th:text="#{billing.discount12}">Discount for paying yearly (%)</span>
+                            <input type="number" name="discount12" min="0" max="100" dir="ltr"
+                                   th:placeholder="${plan.discount12Percent()}" th:value="${subscription?.ownDiscount12Percent}"></label>
+                        <label><span th:text="#{billing.grace}">Days of grace</span>
+                            <input type="number" name="graceDays" min="0" th:max="${maxGrace}" dir="ltr"
+                                   th:placeholder="${plan.graceDays()}" th:value="${subscription?.ownGraceDays}">
+                            <span class="hint" th:text="#{billing.grace.hint}">After these, new bookings pause. Reminders keep going.</span></label>
+                        <label class="span-2"><span th:text="#{billing.costs}">Meta message costs</span>
+                            <select name="messageCosts">
+                                <option value="" th:text="#{billing.own.as-plan(#{'billing.costs.' + ${plan.messageCosts()}})}">As the general plan</option>
+                                <option value="INCLUDED" th:selected="${subscription?.ownMessageCosts?.name() == 'INCLUDED'}"
+                                        th:text="#{billing.costs.INCLUDED}">Included in the fee</option>
+                                <option value="ON_TOP" th:selected="${subscription?.ownMessageCosts?.name() == 'ON_TOP'}"
+                                        th:text="#{billing.costs.ON_TOP}">Added to each invoice</option>
+                            </select>
+                            <span class="hint" th:text="#{billing.costs.hint}">Added from the estimates in the report.</span></label>
+                    </div>
+                </fieldset>
+                <div class="form-actions">
+                    <button type="submit" th:classappend="${subscription == null} ? 'primary'">
+                        <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span th:text="#{action.save}">Save</span></button>
+                </div>
+            </form>
+            <p class="hint" th:if="${#strings.isEmpty(payTo)}" th:text="#{billing.pay-to.missing}">
+                Set BILLING_PAY_TO on the server to tell clinics how to pay.</p>
+        </section>
+    </div>
+
+    <section class="card" th:if="${subscription != null}">
+        <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>
+            <h2 th:text="#{billing.invoices}">Payments and invoices</h2><span class="count" th:text="${payments.size()}">3</span></div>
+        <p class="empty-note" th:if="${payments.isEmpty()}"><svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>
+            <span th:text="#{billing.invoices.none}">No payment yet.</span></p>
+        <ol class="bill-timeline">
+            <li th:each="p, it : ${payments}">
+                <span class="bill-dot" aria-hidden="true"><svg class="icon"><use href="#i-check"/></svg></span>
+                <span class="grow">
+                    <strong th:text="${p.period()}">1 September – 30 November 2026</strong>
+                    <span class="muted small"><th:block th:text="${p.number()}">INV-2026-0003</th:block> ·
+                        <th:block th:text="#{billing.paid-on(${p.paidOn()})}">paid 2 September 2026</th:block> ·
+                        <th:block th:text="#{'method.' + ${p.method()}}">Whish</th:block>
+                        <span th:if="${p.reference()}" dir="ltr" th:text="'· ' + ${p.reference()}">· W-88213</span></span>
+                </span>
+                <strong class="ledger-amount" dir="ltr" th:text="${p.amount()}">$135.00</strong>
+                <a class="button sm" th:href="@{${p.invoiceUrl()}}" target="_blank" rel="noopener">
+                    <svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg><span th:text="#{billing.invoice}">Invoice</span></a>
+                <form th:if="${it.first}" method="post" class="inline" th:attr="data-confirm=#{billing.undo.confirm}"
+                      th:action="@{/operator/clinics/{id}/billing/payments/{p}/delete(id=${clinic.id}, p=${p.id()})}">
+                    <button type="submit" class="sm icon-btn ghost-danger" th:title="#{billing.undo}" th:aria-label="#{billing.undo}">
+                        <svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg></button>
+                </form>
+            </li>
+        </ol>
+    </section>
+</main>
+</body>
+</html>

@@ -5,17 +5,24 @@
 <main class="container">
     <header class="page-head">
         <div>
-            <div class="eyebrow"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg><span th:text="#{settings.title}">Settings</span></div>
             <h1 th:text="#{settings.title}">Settings</h1>
+            <p class="muted" th:text="#{settings.intro}">Reminders, the language for new patients, and what Dorak tells patients on WhatsApp.</p>
         </div>
     </header>
 
     <!--/* One form for the clinic: every field is posted together, so nothing is switched off by accident. */-->
-    <form method="post" th:action="@{/settings/clinic}">
+    <form method="post" th:action="@{/settings/clinic}" data-dirty-watch>
         <div class="grid-2">
             <div class="stack">
                 <section class="card">
-                    <div class="section-head"><h2 th:text="#{settings.section.reminders}">Reminders</h2></div>
+                    <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg>
+                        <h2 th:text="#{settings.section.reminders}">Reminders</h2></div>
+                    <!--/* When the reminders go out: each stop lights up with its switch below (CSS :has). */-->
+                    <div class="remind-line" aria-hidden="true">
+                        <span class="rl-stop rl-day"><i></i><span th:text="#{settings.timeline.day}">The day before</span></span>
+                        <span class="rl-stop rl-hours"><i></i><span th:text="#{settings.timeline.hours}">2 hours before</span></span>
+                        <span class="rl-stop rl-visit"><i></i><span th:text="#{settings.timeline.visit}">The appointment</span></span>
+                    </div>
                     <label class="setting">
                         <span><strong th:text="#{settings.h24}">Send a reminder the day before</strong>
                             <span class="hint" th:text="#{settings.h24.hint}">Skipped when booked less than a day ahead.</span></span>
@@ -28,7 +35,8 @@
                     </label>
                 </section>
                 <section class="card">
-                    <div class="section-head"><h2 th:text="#{settings.default-language}">New patients' language</h2></div>
+                    <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg>
+                        <h2 th:text="#{settings.default-language}">New patients' language</h2></div>
                     <p class="hint" th:text="#{settings.default-language.hint}">The language new patients get until they choose.</p>
                     <div class="radio-pills" role="radiogroup" th:aria-label="#{settings.default-language}">
                         <label><input type="radio" name="defaultLanguage" value="ar" th:checked="${defaultLanguage == 'ar'}">
@@ -40,7 +48,8 @@
             </div>
 
             <section class="card">
-                <div class="section-head"><h2 th:text="#{settings.section.info}">Info on WhatsApp</h2></div>
+                <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg>
+                    <h2 th:text="#{settings.section.info}">Info on WhatsApp</h2></div>
                 <p class="hint" th:text="#{settings.contact.hint}">Sent to patients who tap Info on WhatsApp.</p>
                 <div class="stack">
                     <label>
@@ -66,9 +75,11 @@
                 </div>
             </section>
         </div>
-        <div class="form-actions spaced">
+        <!--/* Stays at the foot of the screen; app.js marks the form "dirty" once something differs from what was loaded. */-->
+        <div class="save-bar">
             <button type="submit" class="primary"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
                 <span th:text="#{action.save}">Save</span></button>
+            <span class="unsaved" role="status" th:text="#{settings.unsaved}">You have changes that are not saved yet.</span>
         </div>
     </form>
 

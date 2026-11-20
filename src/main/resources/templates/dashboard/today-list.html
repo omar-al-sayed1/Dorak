@@ -10,33 +10,28 @@
 
     <div class="stats">
         <div class="stat">
-            <div class="stat-head"><span class="stat-label" th:text="#{today.stats.total}">Appointments</span>
-                <span class="stat-icon"><svg class="icon" aria-hidden="true"><use href="#i-today"/></svg></span></div>
+            <div class="stat-head"><span class="stat-label" th:text="#{today.stats.total}">Appointments</span></div>
             <div class="stat-value" th:text="${stats.total()}">12</div>
             <div class="stat-sub" th:text="#{today.stats.whatsapp(${stats.whatsApp() + ''})}">4 booked on WhatsApp</div>
         </div>
         <div class="stat tone-ok">
-            <div class="stat-head"><span class="stat-label" th:text="#{today.stats.confirmed}">Confirmed</span>
-                <span class="stat-icon"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg></span></div>
+            <div class="stat-head"><span class="stat-label" th:text="#{today.stats.confirmed}">Confirmed</span></div>
             <div class="stat-value" th:text="${stats.confirmed()}">7</div>
             <div class="meter" role="presentation"><span th:style="'width:' + ${stats.confirmedPercent()} + '%'"></span></div>
             <div class="stat-sub" th:text="#{today.stats.confirmed-share(${stats.confirmedPercent() + ''})}">70% of open ones</div>
         </div>
         <div class="stat tone-arrived">
-            <div class="stat-head"><span class="stat-label" th:text="#{today.stats.arrived}">Arrived</span>
-                <span class="stat-icon"><svg class="icon" aria-hidden="true"><use href="#i-user-check"/></svg></span></div>
+            <div class="stat-head"><span class="stat-label" th:text="#{today.stats.arrived}">Arrived</span></div>
             <div class="stat-value" th:text="${stats.arrived()}">3</div>
             <div class="stat-sub"></div>
         </div>
         <div class="stat tone-warn">
-            <div class="stat-head"><span class="stat-label" th:text="#{today.stats.no-show}">No-shows</span>
-                <span class="stat-icon"><svg class="icon" aria-hidden="true"><use href="#i-user-x"/></svg></span></div>
+            <div class="stat-head"><span class="stat-label" th:text="#{today.stats.no-show}">No-shows</span></div>
             <div class="stat-value" th:text="${stats.noShows()}">1</div>
             <div class="stat-sub"></div>
         </div>
         <div class="stat tone-danger">
-            <div class="stat-head"><span class="stat-label" th:text="#{today.stats.cancelled}">Cancelled</span>
-                <span class="stat-icon"><svg class="icon" aria-hidden="true"><use href="#i-ban"/></svg></span></div>
+            <div class="stat-head"><span class="stat-label" th:text="#{today.stats.cancelled}">Cancelled</span></div>
             <div class="stat-value" th:text="${stats.cancelled()}">2</div>
             <div class="stat-sub" th:text="#{today.stats.cancelled-by-patient(${stats.cancelledByPatient() + ''})}">1 by the patient</div>
         </div>

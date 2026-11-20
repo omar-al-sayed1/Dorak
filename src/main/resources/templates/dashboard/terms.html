@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{dashboard/layout :: page(~{::title}, 'terms', ~{::main})}">
+<head><title th:text="#{terms.title}">Terms of service</title></head>
+<body>
+<!--/*
+  The terms of service, open to everyone (linked from the sign-in page). Signed in, it sits in the
+  dashboard like any page; signed out, it brings its own top bar with the logo, the way back to
+  sign in and the other language. The sections are terms.1 to terms.11 in the message files.
+*/-->
+<main class="container narrow terms" th:classappend="${staff == null} ? 'terms-public'">
+    <nav class="terms-top" th:if="${staff == null}">
+        <a class="dorak-logo" th:href="@{/login}" th:aria-label="#{app.name}">
+            <img class="logo-light" th:src="@{/img/dorak-logo.png}" alt="" height="34">
+            <img class="logo-dark" th:src="@{/img/dorak-logo-dark.png}" alt="" height="34">
+        </a>
+        <span class="grow"></span>
+        <a class="button ghost sm" th:href="@{/terms(lang=${otherLang})}" th:lang="${otherLang}">
+            <svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg>
+            <span th:text="#{'language.switch.' + ${otherLang}}">English</span></a>
+        <a class="button primary sm" th:href="@{/login}"><span th:text="#{login.submit}">Sign in</span></a>
+    </nav>
+
+    <header class="page-head">
+        <div>
+            <div class="eyebrow"><span th:text="#{app.name}">Dorak</span></div>
+            <h1 th:text="#{terms.title}">Terms of service</h1>
+            <p class="muted" th:text="#{terms.updated}">Last updated: 15 November 2026</p>
+        </div>
+    </header>
+
+    <p class="terms-lead" th:text="#{terms.intro}">These terms are the agreement between your clinic and Dorak.</p>
+
+    <!--/* Jump to a section. */-->
+    <nav class="terms-toc" th:aria-label="#{terms.contents}">
+        <a th:each="n : ${#numbers.sequence(1, 11)}" th:href="'#terms-' + ${n}">
+            <b th:text="${n}">1</b><span th:text="#{${'terms.' + n + '.title'}}">The service</span></a>
+    </nav>
+
+    <ol class="terms-list">
+        <li th:each="n : ${#numbers.sequence(1, 11)}" th:id="'terms-' + ${n}">
+            <h2 th:text="#{${'terms.' + n + '.title'}}">The service</h2>
+            <p th:text="#{${'terms.' + n + '.body'}}">What Dorak does.</p>
+        </li>
+    </ol>
+
+    <p class="terms-foot muted" th:text="#{terms.foot}">Questions about these terms? Ask your operator.</p>
+</main>
+</body>
+</html>

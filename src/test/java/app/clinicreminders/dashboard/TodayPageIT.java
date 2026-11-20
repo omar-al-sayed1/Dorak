@@ -104,7 +104,7 @@ class TodayPageIT extends DashboardTest {
 
         assertThat(post(staff, "/appointments/{id}/cancel", appointment.getId()))
                 .hasStatus3xxRedirection()
-                .headers().hasValue("Location", "/?date=2026-10-14");
+                .headers().hasValue("Location", "/app/?date=2026-10-14");
 
         Appointment cancelled = appointments.findByIdAndClinicId(appointment.getId(), clinic.getId()).orElseThrow();
         assertThat(cancelled.getStatus()).isEqualTo(AppointmentStatus.CANCELLED);

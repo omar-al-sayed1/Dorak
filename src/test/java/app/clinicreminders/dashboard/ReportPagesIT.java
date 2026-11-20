@@ -22,6 +22,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 /** The Report page, its CSV, and the operator's cost tracking. Now is Wednesday 14 October 2026, 12:00 in Beirut. */
 class ReportPagesIT extends DashboardTest {
 
+    @Autowired
+    app.clinicreminders.billing.Billing billing;
+
     private static final Duration HALF_HOUR = Duration.ofMinutes(30);
 
     @Autowired
@@ -102,6 +105,18 @@ class ReportPagesIT extends DashboardTest {
                 .contains("Clinics this month", "October 2026", "Dr. Demo", "Another clinic", "$0.02",
                         "href=\"/operator/clinics/" + clinic.getId() + "/report?month=2026-10\"",
                         "No message rates are set");
+        assertThat(get(operator, "/operator/report")).as("nothing collected yet: the message costs are a loss").bodyText()
+                .contains("Net income", "Collected subscriptions", "Message costs, all clinics", "$0.00", "−$0.02", "is-loss",
+                        "Clinics that paid: 0", "Where the message costs go", "Subscriptions and message costs, 6 months");
+        billing.save(clinic.getId(), 1, java.time.LocalDate.of(2026, 11, 1), null, new java.math.BigDecimal("50"), null, null, null,
+                null, clock.instant());
+        billing.record(clinic.getId(), 1, null, app.clinicreminders.billing.SubscriptionPayment.Method.CASH, null,
+                java.time.LocalDate.of(2026, 10, 10), "omar", clock.instant());
+        assertThat(get(operator, "/operator/report")).as("a clinic paid $50: that, less the two cents of messages").bodyText()
+                .contains("$50.00", "$49.98", "Clinics that paid: 1", "You keep 100%").doesNotContain("is-loss");
+        assertThat(get(operator, "/operator/report?month=2026-09")).as("paid in October, not in September").bodyText()
+                .contains("Clinics that paid: 0");
+
         assertThat(get(operator, "/operator/clinics/{id}/report", clinic.getId())).hasStatusOk().bodyText()
                 .contains("<h1>October 2026</h1>", "Dr. Demo", "Busy hours", "WhatsApp messages",
                         "href=\"/operator/clinics/" + clinic.getId() + "/report.csv?month=2026-10\"");

@@ -10,10 +10,9 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
-    properties:
-      hibernate:
-        jdbc:
-          time_zone: UTC
+    # No hibernate.jdbc.time_zone: it converted plain times and dates (opening hours, days off) through
+    # the JVM's own zone, so 15:30 was stored as 13:30 on a server in Beirut. Instants are stored as
+    # UTC by Hibernate anyway (timestamptz); times of day and dates are stored as they are.
   flyway:
     locations: classpath:db/migration
   messages:
@@ -33,6 +32,10 @@ spring:
 app:
   # Public address of this service, for links sent to patients (SPEC section 7).
   base-url: ${APP_BASE_URL}
+
+billing:
+  # How clinics pay the operator, shown on their Billing page and in reminders, e.g. "Whish 70 123 456 (Omar)".
+  pay-to: ${BILLING_PAY_TO:}
 
 management:
   endpoints:

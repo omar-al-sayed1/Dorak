@@ -47,6 +47,8 @@ If a library isn't compatible with Spring Boot 4 yet, tell me before downgrading
   `doctor` / `dev` (Dr. Dev's own login: his appointments, patients and hours only) and `operator` / `dev`
   (created by `DevDataInitializer`, dev profile only)
 - Operator pages (onboarding clinics): `http://localhost:8080/operator`
+- Billing (what clinics pay; SPEC section 5.7): the operator's at `http://localhost:8080/operator/billing`,
+  the clinic owner's at `/billing`. `BILLING_PAY_TO` (optional) is the "how to pay" line clinics see.
 - First operator login on a new server: `java -jar app.jar --create-operator=<username>` (locally:
   `./mvnw spring-boot:run "-Dspring-boot.run.arguments=--create-operator=<username>"`). Prints a
   generated password once and exits; running it again gives that operator a new password.
@@ -65,7 +67,7 @@ Update this section whenever the commands change.
 
 React dashboard in `frontend/src` (pages in `pages/`). Java, package by feature under `app.clinicreminders`:
 `clinic`, `staff`, `scheduling` (slot engine), `patient`, `appointment`, `whatsapp` (client,
-webhook, templates), `reminder`, `booking` (conversation flow), `dashboard` (web controllers and
+webhook, templates), `reminder`, `booking` (conversation flow), `billing` (clinics' subscriptions and payments), `dashboard` (web controllers and
 views), `api` (JSON API for React), `report`, `common`.
 
 ## Rules that matter

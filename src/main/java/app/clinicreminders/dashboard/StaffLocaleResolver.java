@@ -38,6 +38,28 @@ public class StaffLocaleResolver implements LocaleResolver {
         return accept != null && accept.strip().toLowerCase(Locale.ROOT).startsWith("en") ? Language.EN : Language.AR;
     }
 
+    /**
+     * The language of a page opened from a link (a receipt, an invoice): the one asked for in the
+     * address ({@code ?lang=en}), else the reader's own if they use the dashboard (chosen in this
+     * session, or their login's), else {@code fallback} (the patient's, the clinic's). For this
+     * request only; nothing is remembered.
+     */
+    public static Language forPage(HttpServletRequest request, Language fallback) {
+        String asked = request.getParameter("lang");
+        Language language = fallback;
+        HttpSession session = request.getSession(false);
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if ("en".equals(asked) || "ar".equals(asked)) {
+            language = Language.fromCode(asked);
+        } else if (session != null && session.getAttribute(SESSION_ATTRIBUTE) instanceof Language chosen) {
+            language = chosen;
+        } else if (authentication != null && authentication.getPrincipal() instanceof StaffPrincipal staff) {
+            language = staff.language();
+        }
+        forRequest(request, language);
+        return language;
+    }
+
     /** This request's page is in {@code language}, whoever reads it; nothing is remembered. */
     public static void forRequest(HttpServletRequest request, Language language) {
         request.setAttribute(REQUEST_ATTRIBUTE, language);

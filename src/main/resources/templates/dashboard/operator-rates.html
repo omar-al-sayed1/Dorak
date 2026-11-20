@@ -17,7 +17,7 @@
 
     <section class="card">
         <div class="section-head"><h2 th:text="#{rates.current}">Rates</h2></div>
-        <p class="muted" th:if="${rates.isEmpty()}" th:text="#{rates.none}">No rates yet: messages have no cost estimate.</p>
+        <p class="empty-note" th:if="${rates.isEmpty()}"><svg class="icon" aria-hidden="true"><use href="#i-message"/></svg><span th:text="#{rates.none}">No rates yet: messages have no cost estimate.</span></p>
         <div class="table-scroll" th:unless="${rates.isEmpty()}">
             <table class="data-table">
                 <thead><tr>

@@ -1,8 +1,12 @@
 package app.clinicreminders.scheduling;
 
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.Collection;
+import java.util.List;
 
 import app.clinicreminders.clinic.Clinic;
 import app.clinicreminders.clinic.ClinicRepository;
@@ -12,8 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Doctors, weekly hours and closed days, as edited on the settings pages, and the clinic's
- * appointment length, set by the operator. Always within one clinic.
+ * Doctors, weekly hours, closed days and extra slots, as edited on the settings and week pages,
+ * and the clinic's appointment length, set by the operator. Always within one clinic.
  */
 @Service
 @Transactional
@@ -23,13 +27,17 @@ public class ScheduleSettings {
     private final DoctorRepository doctors;
     private final ScheduleRuleRepository rules;
     private final ScheduleExceptionRepository exceptions;
+    private final ExtraSlotRepository extraSlots;
+    private final SlotService slots;
 
     ScheduleSettings(ClinicRepository clinics, DoctorRepository doctors, ScheduleRuleRepository rules,
-                     ScheduleExceptionRepository exceptions) {
+                     ScheduleExceptionRepository exceptions, ExtraSlotRepository extraSlots, SlotService slots) {
         this.clinics = clinics;
         this.doctors = doctors;
         this.rules = rules;
         this.exceptions = exceptions;
+        this.extraSlots = extraSlots;
+        this.slots = slots;
     }
 
     /** A new doctor takes the clinic's appointment length. */
@@ -57,6 +65,7 @@ public class ScheduleSettings {
         Doctor doctor = doctor(clinicId, doctorId);
         rules.findByClinicIdAndDoctorId(clinicId, doctorId).forEach(rules::delete);
         exceptions.findByClinicIdAndDoctorId(clinicId, doctorId).forEach(exceptions::delete);
+        extraSlots.findByClinicIdAndDoctorId(clinicId, doctorId).forEach(extraSlots::delete);
         doctor.delete(now);
     }
 
@@ -77,9 +86,59 @@ public class ScheduleSettings {
 
     /** Only that doctor's hours: another doctor's (or clinic's) are not found. */
     public void removeWeeklyHours(long clinicId, long doctorId, long ruleId) {
-        rules.delete(rules.findByIdAndClinicId(ruleId, clinicId)
+        rules.delete(rule(clinicId, doctorId, ruleId));
+    }
+
+    /** Moves or stretches one window of the weekly hours (dragged on the hours chart). */
+    public void changeWeeklyHours(long clinicId, long doctorId, long ruleId, TimeWindow window) {
+        rule(clinicId, doctorId, ruleId).change(window);
+    }
+
+    /** {@code from}'s hours on each of {@code to}, replacing what those days had; {@code from} itself is left as it is. */
+    public void copyDay(long clinicId, long doctorId, DayOfWeek from, Collection<DayOfWeek> to) {
+        doctor(clinicId, doctorId);
+        List<ScheduleRule> all = rules.findByClinicIdAndDoctorId(clinicId, doctorId);
+        List<TimeWindow> windows = all.stream().filter(rule -> rule.getDayOfWeek() == from).map(ScheduleRule::window).toList();
+        for (DayOfWeek day : to) {
+            if (day == from) {
+                continue;
+            }
+            all.stream().filter(rule -> rule.getDayOfWeek() == day).forEach(rules::delete);
+            windows.forEach(window -> rules.save(new ScheduleRule(clinicId, doctorId, day, window)));
+        }
+    }
+
+    /**
+     * One more slot on {@code date} at {@code start}, one appointment long. It may not overlap the
+     * hours that day (nor another extra slot): those already have their slots.
+     *
+     * @throws IllegalArgumentException if it overlaps, or would run past midnight
+     */
+    public ExtraSlot addSlot(long clinicId, long doctorId, LocalDate date, LocalTime start) {
+        Duration length = doctor(clinicId, doctorId).slotLength();
+        if (start.plus(length).isBefore(start) || start.plus(length).equals(LocalTime.MIDNIGHT)) {
+            throw new IllegalArgumentException("A slot can't run past midnight: " + start);
+        }
+        TimeWindow slot = new TimeWindow(start, start.plus(length));
+        boolean overlaps = slots.windowsOn(clinicId, doctorId, date).stream()
+                .anyMatch(open -> open.start().isBefore(slot.end()) && slot.start().isBefore(open.end()));
+        if (overlaps) {
+            throw new IllegalArgumentException("Already open then: " + date + " " + start);
+        }
+        return extraSlots.save(new ExtraSlot(clinicId, doctorId, date, start));
+    }
+
+    /** Only that doctor's slot: another doctor's (or clinic's) is not found. An appointment in it stays. */
+    public void removeSlot(long clinicId, long doctorId, long slotId) {
+        extraSlots.delete(extraSlots.findByIdAndClinicId(slotId, clinicId)
+                .filter(slot -> slot.getDoctorId() == doctorId)
+                .orElseThrow(() -> new NotFoundException("Slot", slotId)));
+    }
+
+    private ScheduleRule rule(long clinicId, long doctorId, long ruleId) {
+        return rules.findByIdAndClinicId(ruleId, clinicId)
                 .filter(rule -> rule.getDoctorId() == doctorId)
-                .orElseThrow(() -> new NotFoundException("Hours", ruleId)));
+                .orElseThrow(() -> new NotFoundException("Hours", ruleId));
     }
 
     /**

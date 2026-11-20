@@ -21,7 +21,7 @@ intervention from the operator.
 ## 3. Out of scope for the MVP
 
 Taking payments (cards, online), medical records, AI chat, multi-branch clinics, native mobile apps,
-calendar sync and SMS fallback. Recording what patients paid is planned as Balance (P1, section 5.6).
+calendar sync and SMS fallback. Recording what patients paid is in scope as Balance (P1, section 5.6).
 
 ## 4. Data model
 
@@ -85,7 +85,11 @@ and location).
 - **Patients:** search by name or phone; delete on request (also removes their conversations and
   anonymizes their message log).
 - **Needs attention:** conversations flagged for a human, and failed sends.
-- **Settings:** doctors, weekly hours, slot length, closed days, reminder toggles, language.
+- **Settings:** doctors, weekly hours, slot length, closed days, reminder toggles, language. Weekly hours
+  are edited on a chart: drag on a day to add hours, drag a block or its ends to change it (15-minute
+  steps), copy a day to other days.
+- **Extra slots:** on the week page, "Add a slot" gives one date one more slot of the doctor's length,
+  outside that day's hours; it may not overlap them. Free ones can be removed.
 - Arabic and English, with right-to-left layout for Arabic.
 
 ### 5.4 Monthly report
@@ -121,15 +125,31 @@ number id, business account id and access token (encrypted), and send a test mes
 A seed command creates a "Dr. Demo" clinic with sample doctors, hours and appointments for sales
 demos.
 
-### 5.6 Balance (P1, planned after R1)
+#### Operator: finding and deleting clinics
+
+- **Clinics list** (`/operator`): search by name; filter by WhatsApp connection, setup finished or
+  not, and billing (paid up, late or paused). "Add a clinic" opens a dialog.
+- **Quick filters**, on the clinics list and on Billing: three cards to tick, each with its count, which
+  combine with the search and the other filters. Subscription ends soon (payment due within 7 days),
+  never paid (no payment recorded yet), gone quiet (no appointment booked in the last 14 days).
+- **Deleting a clinic** (operator, on the clinic's page): with everything of it (logins, doctors and
+  hours, patients, appointments, reminders, messages, payments, its subscription and invoices). The
+  operator types the word "delete" (or its Arabic), then confirms in a dialog; the server checks the
+  word too. For 10 minutes the clinics page shows a small message with **Undo**, which puts every row
+  back as it was. Meanwhile the clinic's rows are held in `deleted_clinic`; a job purges them once
+  the 10 minutes are over, and from then on the deletion is for good.
+
+### 5.6 Balance (P1)
 
 A ledger, not a payment system: nothing is charged to a card.
 
-- Each doctor has a default consultation fee, which can be changed per visit (a free follow-up, a procedure).
+- The desk types each visit's fee (0 for a free follow-up); there is no stored default fee.
 - When a patient arrives, the desk records what they paid, in full, in part or later, and how:
   cash, Whish, OMT, card or bank transfer. Each appointment then shows Paid, Partly paid or Unpaid.
-- Amounts are in USD. A payment can be entered in Lebanese pounds at the clinic's rate of the day,
-  set in Settings.
+- Amounts are in USD. A payment can be entered in Lebanese pounds at a fixed rate of 89,500 LBP to the
+  dollar (in the code, not a setting). The drawer is counted in dollars.
+- Add payment (Today, Balance, Patients, a patient's account): for a chosen patient, an amount they
+  owe that belongs to no visit (an old debt), or a payment on their account, with its receipt.
 - Each patient has a balance with the timeline of charges and payments. A family on one number
   also shows the family's total, as one parent usually pays for everyone.
 - A "Who owes" list, biggest and oldest first, with Call.
@@ -138,6 +158,45 @@ A ledger, not a payment system: nothing is charged to a card.
 - The monthly report adds charged, collected, still owed, and collected by method.
 - No WhatsApp messages about money for now: sensitive, and it would need its own approved template.
 - Built in React. Deleting a patient on request deletes their payment records too.
+
+### 5.7 Billing (what clinics pay the operator)
+
+- **Manual by design:** clinics pay by cash, Whish, OMT or bank transfer; the operator records each
+  payment. No card gateway.
+- **One general plan** for every clinic (operator, on `/operator/billing`): the monthly fee, a discount
+  for paying 6 months at once and one for paying a year, days of grace, and whether Meta's message
+  costs are included in the fee or added to each invoice. It starts at $40 a month, 5% off for
+  6 months, 10% off for a year, 2 days of grace, message costs included.
+- **Every clinic is billed.** A new clinic gets a subscription on the general plan when it is
+  created: its first payment is due a month later (the trial), paying a month at a time.
+- **Subscription per clinic** (operator, `/operator/clinics/{id}/billing`): how many months it usually
+  pays at once (1, 3, 6 or 12), the day the next payment is due and a billing contact number. Any of
+  the plan's terms can be changed for that clinic; a field left empty follows the general plan, also
+  when the plan changes later.
+- **Standing**, from the due day: trial (nothing paid yet), active, due soon (7 days before), overdue
+  (within the grace), paused (after it).
+- **Invoices and patients' receipts** (`/i/{token}`, `/r/{token}`) are sheets that print as one A4
+  page. Their language: the reader's own when someone using the dashboard opens them, else the
+  clinic's (an invoice) or the patient's (a receipt); a link on the page switches it (`?lang=`).
+- **The operator's report** (`/operator/report`) opens with the month's money: subscriptions collected,
+  Meta's estimated message costs for all clinics, and net income (the first minus the second). Two
+  charts: both figures side by side for six months, and which clinics the month's message costs
+  come from.
+- **A payment** moves the due day forward by the months paid and is the clinic's invoice: a public,
+  printable page at `/i/{token}` (random token, in the clinic's language). Only the latest payment can
+  be undone. With message costs on top, an invoice adds the estimated cost of the clinic's messages
+  since the last invoice.
+- **The clinic is told:** a bar across the front desk's dashboard when a payment is due soon, overdue
+  or paused; the owner has a read-only Billing page (`/billing`) with what is due, how to pay
+  (`BILLING_PAY_TO`) and past invoices.
+- **Reminding a clinic:** a button opens the operator's own WhatsApp (a wa.me link) with the message
+  written in the clinic's language. Nothing is sent through the Cloud API, so no template is needed.
+- **The pause is soft:** new WhatsApp bookings get the "not available right now, we will call you"
+  reply (and the desk is flagged), and the desk cannot add appointments. Reminders, confirmations,
+  cancellations and moving what is booked keep working. Nothing is deleted.
+- **Overview** (`/operator/billing`): collected this month against what the subscriptions should bring,
+  what is overdue, who is due this week, six months of income, and every clinic by urgency, with a
+  search by name and filters by standing and by terms (general plan or its own).
 
 ## 6. WhatsApp integration
 

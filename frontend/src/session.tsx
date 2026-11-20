@@ -18,6 +18,8 @@ export interface Session {
   hue: number;
   /** Null where there is no Needs attention: operators and doctors. */
   attentionCount: number | null;
+  /** The clinic's payment for the service is near or late (front desk); the owner's bar links to Billing. */
+  billing?: { status: "due-soon" | "overdue" | "paused"; dueOn: string; days: number; owner: boolean } | null;
   csrf: Csrf;
 }
 

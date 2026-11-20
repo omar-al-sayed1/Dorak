@@ -24,7 +24,7 @@ public class TodayList {
     /** One appointment as listed, with the actions that make sense for it right now. */
     public record Row(Long id, String time, String patientName, String patientPhone, String status, String source,
                boolean cancelled, boolean cancelledByPatient, boolean past,
-               boolean canArrive, boolean canNoShow, boolean canCancel, boolean canReschedule) {
+               boolean canArrive, boolean canNoShow, boolean canCancel, boolean canReschedule, Long patientId) {
     }
 
     /**
@@ -134,6 +134,7 @@ public class TodayList {
                 today && (open || status == AppointmentStatus.NO_SHOW),
                 started && (open || status == AppointmentStatus.ARRIVED),
                 open && !started,
-                open && !started);
+                open && !started,
+                view.patientId());
     }
 }

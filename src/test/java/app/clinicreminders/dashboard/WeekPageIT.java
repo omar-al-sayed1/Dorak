@@ -108,6 +108,68 @@ class WeekPageIT extends DashboardTest {
         assertThat(jdbc.queryForObject("select count(*) from schedule_exception", Integer.class)).isZero();
     }
 
+    // --- Adding a slot ---
+
+    @Test
+    void aSlotCanBeAddedAfterTheLastOneForThatDateOnly() {
+        // Wednesday 21 October, 9:00 to 10:00: the form suggests 10:00, right after the last slot.
+        assertThat(get(staff, "/week?doctorId={id}&start=2026-10-21", doctor.getId())).bodyText()
+                .contains("Add a slot", "name=\"time\" value=\"10:00\"");
+
+        assertThat(post(staff, "/week/add-slot").param("doctorId", doctor.getId().toString()).param("date", "2026-10-21")
+                .param("time", "10:00"))
+                .hasRedirectedUrl("/week?doctorId=" + doctor.getId() + "&start=2026-10-19")
+                .flash().containsEntry("notice", "notice.slot-added").containsEntry("focusDay", "2026-10-21");
+
+        LocalDate wednesday = LocalDate.of(2026, 10, 21);
+        assertThat(slots.freeSlots(clinic.getId(), doctor.getId(), wednesday, wednesday)).hasSize(3);
+        assertThat(slots.freeSlots(clinic.getId(), doctor.getId(), wednesday.plusWeeks(1), wednesday.plusWeeks(1)))
+                .as("the weekly hours stay").hasSize(2);
+        assertThat(get(staff, "/week?doctorId={id}&start=2026-10-21", doctor.getId())).bodyText()
+                .contains("class=\"extra-cell\"", "Added", "/week/remove-slot");
+    }
+
+    @Test
+    void anAddedSlotCanBeRemovedWhileFreeAndBookedItStaysAnAppointment() {
+        post(staff, "/week/add-slot").param("doctorId", doctor.getId().toString()).param("date", "2026-10-21")
+                .param("time", "15:00").exchange();
+        Long slotId = jdbc.queryForObject("select id from extra_slot", Long.class);
+        LocalDate wednesday = LocalDate.of(2026, 10, 21);
+        assertThat(slots.freeSlots(clinic.getId(), doctor.getId(), wednesday, wednesday)).hasSize(3);
+
+        assertThat(post(staff, "/week/remove-slot").param("doctorId", doctor.getId().toString())
+                .param("slotId", slotId.toString()))
+                .hasRedirectedUrl("/week?doctorId=" + doctor.getId() + "&start=2026-10-19")
+                .flash().containsEntry("notice", "notice.slot-removed");
+        assertThat(slots.freeSlots(clinic.getId(), doctor.getId(), wednesday, wednesday)).hasSize(2);
+    }
+
+    @Test
+    void overlappingPastAndOtherClinicsSlotsAreRefused() {
+        assertThat(post(staff, "/week/add-slot").param("doctorId", doctor.getId().toString()).param("date", "2026-10-21")
+                .param("time", "09:40")).as("already open").flash().containsEntry("error", "error.slot-open");
+        assertThat(post(staff, "/week/add-slot").param("doctorId", doctor.getId().toString()).param("date", "2026-10-21")
+                .param("time", "08:45")).as("runs into 9:00").flash().containsEntry("error", "error.slot-open");
+        assertThat(post(staff, "/week/add-slot").param("doctorId", doctor.getId().toString()).param("date", "2026-10-13")
+                .param("time", "10:00")).as("past").flash().containsEntry("error", "error.not-allowed");
+        assertThat(post(staff, "/week/add-slot").param("doctorId", doctor.getId().toString()).param("date", "2026-10-21")
+                .param("time", "23:45")).as("past midnight").flash().containsEntry("error", "error.slot-open");
+        Doctor theirs = data.doctor(data.clinic("B"), "Dr. Elsewhere", 30);
+        assertThat(post(staff, "/week/add-slot").param("doctorId", theirs.getId().toString()).param("date", "2026-10-21")
+                .param("time", "10:00")).hasStatus(404);
+        assertThat(jdbc.queryForObject("select count(*) from extra_slot", Integer.class)).isZero();
+
+        post(staff, "/week/add-slot").param("doctorId", doctor.getId().toString()).param("date", "2026-10-21")
+                .param("time", "10:00").exchange();
+        Long slotId = jdbc.queryForObject("select id from extra_slot", Long.class);
+        StaffPrincipal elsewhere = secretaryOf(data.clinic("C"));
+        assertThat(post(elsewhere, "/week/remove-slot").param("doctorId", doctor.getId().toString())
+                .param("slotId", slotId.toString())).hasStatus(404);
+        assertThat(post(staff, "/week/remove-slot").param("doctorId", theirs.getId().toString())
+                .param("slotId", slotId.toString())).hasStatus(404);
+        assertThat(jdbc.queryForObject("select count(*) from extra_slot", Integer.class)).isEqualTo(1);
+    }
+
     // --- Details and drag and drop ---
 
     @Test
