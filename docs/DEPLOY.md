@@ -113,6 +113,7 @@ The app checks itself every minute and messages you on Telegram when:
 | Alert | Means |
 | --- | --- |
 | Reminders are late | Reminders still waiting 10 minutes after their time: the scheduler stalled. |
+| Reminders left unfinished | The app stopped while sending: those reminders are not sent again (they may have gone out). Check them with the clinic. |
 | Incoming WhatsApp messages are not being processed | Webhook deliveries stuck for 10 minutes: replies and button presses are not handled. |
 | WhatsApp sends are failing | 3 or more failed sends, and at least half of all sends, in 15 minutes. Usually an expired token, a blocked number or a template problem. |
 | No recent database backup | No successful backup for 26 hours. |

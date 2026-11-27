@@ -84,6 +84,21 @@ class HealthChecksIT extends IntegrationTest {
     }
 
     @Test
+    void aReminderLeftInSendingIsAProblemThatIsNotRetried() {
+        reminder("SENDING", NOW.minus(Duration.ofMinutes(5)));
+        assertThat(checks.check(NOW).problems()).as("still within the margin").isEmpty();
+
+        reminder("SENDING", NOW.minus(Duration.ofMinutes(40)));
+
+        assertThat(checks.check(NOW).problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.key()).isEqualTo("sending");
+            assertThat(problem.alert()).contains("1 left unfinished, the oldest due 40 minutes ago", "not sent again");
+        });
+        assertThat(jdbc.queryForObject("select count(*) from reminder where status = 'SENDING'", Integer.class))
+                .as("left as it is: at most once").isEqualTo(2);
+    }
+
+    @Test
     void webhookDeliveriesLeftUnprocessedAreAProblemButOnesGivenUpOnAreNot() {
         jdbc.update("insert into webhook_inbox (payload, received_at) values ('{}', ?)", utc(NOW.minus(Duration.ofMinutes(15))));
         jdbc.update("insert into webhook_inbox (payload, received_at, failed) values ('{}', ?, true)", utc(NOW.minus(Duration.ofHours(3))));

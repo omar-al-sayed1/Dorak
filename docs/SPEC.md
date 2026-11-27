@@ -272,7 +272,7 @@ password, Backblaze B2 keys, backup passphrase); see `docs/DEPLOY.md`.
   or the scheduler stalls. As built (M7): backups are encrypted and copied to Backblaze B2 by the
   `backup` container, restored with `deploy/restore.sh`; alerts go to the operator on Telegram (a
   bot of their own), not WhatsApp, so they still arrive when WhatsApp is what fails and need no
-  Meta template. The app checks every minute for late reminders, stuck webhook deliveries, failing
+  Meta template. The app checks every minute for late reminders, reminders left unfinished by a stop mid-send, stuck webhook deliveries, failing
   sends, a missing backup and an unreachable database; a server that is down altogether is caught
   by an external uptime check on `/actuator/health`.
 

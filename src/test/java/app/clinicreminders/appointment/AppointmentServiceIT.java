@@ -113,6 +113,17 @@ class AppointmentServiceIT extends IntegrationTest {
     }
 
     @Test
+    void aWhatsAppBookingNeverLandsOnASqueezeIn() {
+        Patient other = data.patient(clinic, "+96170999999");
+        // The desk squeezes a patient in at 10:45, inside the 10:30-11:00 slot offered on WhatsApp.
+        book(TUE_1030.plus(Duration.ofMinutes(15)));
+
+        assertThat(tryBook(other, TUE_1030)).as("overlaps the squeeze-in").isEmpty();
+        assertThat(tryBook(other, TUE_1030.minus(Duration.ofMinutes(30)))).as("10:00-10:30 ends before it").isPresent();
+        assertThat(count("appointment")).isEqualTo(2);
+    }
+
+    @Test
     void tryBookUsesTheDoctorsSlotLengthAndStaysInItsClinic() {
         Appointment booked = tryBook(patient, TUE_1030).orElseThrow();
         Clinic other = data.clinic("B");

@@ -22,6 +22,7 @@ import org.springframework.stereotype.Component;
  * What is wrong in production right now, as problems ready to alert (SPEC section 8, operations):
  * <ul>
  *   <li>reminders still pending well after their due time: the scheduler stalled;</li>
+ *   <li>reminders claimed for sending but never finished: the app stopped in the middle;</li>
  *   <li>webhook deliveries left unprocessed: incoming messages and button replies are stuck;</li>
  *   <li>most WhatsApp sends failing in the last minutes;</li>
  *   <li>no successful backup for a day (the backup container records each one in {@code ops_heartbeat});</li>
@@ -60,6 +61,7 @@ class HealthChecks {
         try {
             List<Problem> problems = new ArrayList<>();
             lateReminders(now).ifPresent(problems::add);
+            stuckReminders(now).ifPresent(problems::add);
             stuckWebhooks(now).ifPresent(problems::add);
             failingSends(now).ifPresent(problems::add);
             if (properties.backupsWatched()) {
@@ -77,6 +79,17 @@ class HealthChecks {
                 now.minus(properties.remindersLateAfter()));
         return late.count() == 0 ? Optional.empty()
                 : Optional.of(problem("reminders", "alert.reminders", late.count(), minutesSince(late.oldest(), now)));
+    }
+
+    /**
+     * Claimed for sending but never finished: the app stopped between sending and recording it. Not
+     * sent again (it may have gone out: at most once), so the operator is told to look.
+     */
+    private Optional<Problem> stuckReminders(Instant now) {
+        Backlog stuck = backlog("select count(*), min(due_at) from reminder where status = 'SENDING' and due_at < :cutoff",
+                now.minus(properties.remindersLateAfter()));
+        return stuck.count() == 0 ? Optional.empty()
+                : Optional.of(problem("sending", "alert.reminders-stuck", stuck.count(), minutesSince(stuck.oldest(), now)));
     }
 
     private Optional<Problem> stuckWebhooks(Instant now) {

@@ -7,7 +7,14 @@
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		Referrer-Policy strict-origin-when-cross-origin
 		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
 		-Server
+	}
+
+	# Nothing the app accepts is bigger than this (forms, JSON, WhatsApp webhooks).
+	request_body {
+		max_size 2MB
 	}
 
 	# Only the health status is exposed by the app; nothing else under /actuator should answer.

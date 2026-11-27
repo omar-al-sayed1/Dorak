@@ -77,14 +77,20 @@ public interface AppointmentRepository extends Repository<Appointment, Long> {
     long countUpcomingOfDoctor(Long clinicId, Long doctorId, Instant after);
 
     /**
-     * Books unless the doctor already has an active appointment starting then. Unlike
+     * Books unless the doctor already has an active appointment starting then, or one that overlaps
+     * it (a squeeze-in the desk made at another time after the patient was offered this one). Unlike
      * {@link #saveAndFlush}, losing the race returns empty instead of throwing, so the caller's
      * transaction stays usable (the WhatsApp flow runs inside the webhook inbox's transaction).
+     * The same start is guarded by the unique index even under concurrency; the overlap check
+     * covers what was committed before this statement.
      */
     @Transactional
     @Query(value = """
             insert into appointment (clinic_id, doctor_id, patient_id, starts_at, ends_at, status, source)
-            values (:clinicId, :doctorId, :patientId, :startsAt, :endsAt, 'BOOKED', :source)
+            select :clinicId, :doctorId, :patientId, :startsAt, :endsAt, 'BOOKED', :source
+            where not exists (select 1 from appointment a
+                              where a.clinic_id = :clinicId and a.doctor_id = :doctorId and a.status <> 'CANCELLED'
+                                and a.starts_at < :endsAt and a.ends_at > :startsAt)
             on conflict (doctor_id, starts_at) where status <> 'CANCELLED' do nothing
             returning id""", nativeQuery = true)
     Optional<Long> insertUnlessTaken(Long clinicId, Long doctorId, Long patientId, Instant startsAt, Instant endsAt,
