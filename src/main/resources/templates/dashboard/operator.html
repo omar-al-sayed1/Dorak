@@ -48,6 +48,7 @@
                     <option value="" th:text="#{operator.patients.any}">Any</option>
                     <option value="connected" th:selected="${whatsapp == 'connected'}" th:text="#{operator.connected.yes}">Connected</option>
                     <option value="not-connected" th:selected="${whatsapp == 'not-connected'}" th:text="#{operator.connected.no}">Not connected</option>
+                    <option value="off" th:selected="${whatsapp == 'off'}" th:text="#{operator.clinic.dashboard-only}">Dashboard only</option>
                 </select></label>
             <label><span th:text="#{operator.setup}">Setup</span>
                 <select name="setup">
@@ -90,8 +91,9 @@
                     <span class="avatar lg square-avatar" th:style="'--hue:' + ${@avatars.hue(c.name())}" th:text="${@avatars.initials(c.name())}">DD</span>
                     <div class="grow">
                         <h2 th:text="${c.name()}">Dr. Demo</h2>
-                        <span class="chip" th:classappend="${c.connected()} ? 'chip-CONFIRMED' : 'chip-CANCELLED'"
+                        <span class="chip" th:if="${c.whatsApp()}" th:classappend="${c.connected()} ? 'chip-CONFIRMED' : 'chip-CANCELLED'"
                               th:text="${c.connected()} ? #{operator.connected.yes} : #{operator.connected.no}">Connected</span>
+                        <span class="chip chip-dashboard-only" th:unless="${c.whatsApp()}" th:text="#{operator.clinic.dashboard-only}">Dashboard only</span>
                         <a class="chip" th:if="${c.billing() != null}" th:classappend="'bill-' + ${c.billing()}"
                            th:href="@{/operator/clinics/{id}/billing(id=${c.id()})}" th:text="#{'billing.status.' + ${c.billing()}}">Active</a>
                     </div>
@@ -106,7 +108,7 @@
                 </div>
                 <div>
                     <div class="progress-label"><span th:text="#{operator.setup}">Setup</span>
-                        <span th:text="#{operator.ready(${c.ready() + ''}, ${steps + ''})}">4 of 5</span></div>
+                        <span th:text="#{operator.ready(${c.ready() + ''}, ${c.steps() + ''})}">4 of 5</span></div>
                     <div class="progress"><span th:style="'width:' + ${c.readyPercent()} + '%'"></span></div>
                 </div>
                 <a class="button" th:href="@{/operator/clinics/{id}(id=${c.id()})}">
@@ -133,6 +135,14 @@
                     <input type="number" name="slotMinutes" value="20" min="5" max="240" step="5" required></label>
                 <label><span th:text="#{operator.clinic.email}">Email (optional)</span>
                     <input type="email" name="email" maxlength="254" dir="ltr" autocomplete="off" placeholder="clinic@example.com"></label>
+                <!--/* On by default. Off: a dashboard-only clinic, no WhatsApp, the plan's lower fee. */-->
+                <input type="hidden" name="whatsAppShown" value="true">
+                <label class="setting wa-choice">
+                    <span class="wa-choice-icon" aria-hidden="true"><svg class="icon"><use href="#i-chat"/></svg></span>
+                    <span class="grow"><strong th:text="#{operator.clinic.whatsapp}">WhatsApp reminders and booking</strong>
+                        <span class="hint" th:text="#{operator.clinic.whatsapp.hint(${feeOn}, ${feeOff})}">On: $40 a month. Off: $20 a month.</span></span>
+                    <input type="checkbox" class="switch" name="whatsApp" value="true" checked>
+                </label>
             </div>
             <div class="modal-actions">
                 <button type="button" data-dialog-close th:text="#{action.cancel}">Cancel</button>

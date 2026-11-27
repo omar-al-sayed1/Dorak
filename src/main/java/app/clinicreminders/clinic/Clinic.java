@@ -72,6 +72,10 @@ public class Clinic {
     @Column(name = "reminder_h2_enabled")
     private boolean reminderH2Enabled = true;
 
+    /** Off: no reminders, no WhatsApp messages, nothing WhatsApp on the clinic's dashboard; the lower fee. */
+    @Column(name = "whatsapp_enabled")
+    private boolean whatsAppEnabled = true;
+
     @Generated
     @Column(name = "created_at")
     private Instant createdAt;
@@ -245,6 +249,24 @@ public class Clinic {
 
     public boolean isReminderH2Enabled() {
         return reminderH2Enabled;
+    }
+
+    /** Whether the clinic uses WhatsApp at all: reminders, booking, messages. */
+    public boolean isWhatsAppEnabled() {
+        return whatsAppEnabled;
+    }
+
+    /** Whether this reminder goes out: WhatsApp on, and that reminder switched on in the clinic's settings. */
+    public boolean remindsH24() {
+        return whatsAppEnabled && reminderH24Enabled;
+    }
+
+    public boolean remindsH2() {
+        return whatsAppEnabled && reminderH2Enabled;
+    }
+
+    public void changeWhatsAppEnabled(boolean enabled) {
+        this.whatsAppEnabled = enabled;
     }
 
     public Instant getCreatedAt() {

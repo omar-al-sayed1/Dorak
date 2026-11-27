@@ -3,6 +3,7 @@ package app.clinicreminders.dashboard;
 import java.time.Clock;
 
 import app.clinicreminders.booking.ConversationRepository;
+import app.clinicreminders.clinic.Clinic;
 import app.clinicreminders.clinic.ClinicRepository;
 import app.clinicreminders.common.Language;
 import app.clinicreminders.staff.StaffPrincipal;
@@ -45,6 +46,9 @@ class DashboardModel {
         model.addAttribute("dir", language == Language.AR ? "rtl" : "ltr");
         model.addAttribute("otherLang", language == Language.AR ? Language.EN.code() : Language.AR.code());
         model.addAttribute("staff", staff);
+        // Without WhatsApp the clinic's pages leave out everything WhatsApp (also in htmx's partial pages).
+        model.addAttribute("whatsappOn", staff == null || staff.clinicId() == null
+                || clinics.findById(staff.clinicId()).map(Clinic::isWhatsAppEnabled).orElse(true));
         if (staff != null && staff.clinicId() != null && !"true".equals(request.getHeader("HX-Request"))) {
             long clinicId = staff.clinicId();
             clinics.findById(clinicId).ifPresent(clinic -> model.addAttribute("clinicName", clinic.getName()));

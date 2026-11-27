@@ -33,6 +33,8 @@ class LoginPageServerIT {
             String html = RestClient.create("http://localhost:" + port).get().uri(page).retrieve().body(String.class);
 
             assertThat(html).as(page).contains("name=\"username\"", "name=\"password\"", "name=\"_csrf\"", "</html>");
+            assertThat(html).as("the tour of Dorak, WhatsApp marked optional").contains("data-tour", "id=\"scene-3\"", "tour-optional")
+                    .as("every text is there").doesNotContain("??");
         }
     }
 

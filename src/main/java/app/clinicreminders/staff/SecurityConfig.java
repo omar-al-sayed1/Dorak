@@ -67,6 +67,8 @@ class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/doctors", "/doctors/*", "/doctors/*/delete", "/doctors/*/login",
                                 "/doctors/*/login/**").hasAnyRole(FRONT_DESK)
                         .requestMatchers(HttpMethod.DELETE, "/api/patients/*").hasAnyRole(FRONT_DESK)
+                        // Adding a patient for money on their account (Add Payment): the front desk's.
+                        .requestMatchers(HttpMethod.POST, "/api/patients").hasAnyRole(FRONT_DESK)
                         .anyRequest().hasAnyRole(StaffRole.OWNER.name(), StaffRole.SECRETARY.name(), StaffRole.DOCTOR.name()))
                 .formLogin(form -> form
                         .loginPage("/login")

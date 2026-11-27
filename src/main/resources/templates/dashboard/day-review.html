@@ -33,7 +33,7 @@
                 <span class="grow">
                     <strong th:text="${r.patient()} ?: #{day-review.no-patient}">Rana Haddad</strong>
                     <span class="muted small" dir="ltr" th:if="${r.phone()}" th:text="${r.phone()}">+96170123456</span>
-                    <span class="review-call-note" th:if="${r.optedOut()}" th:text="#{day-review.no-message}">No WhatsApp message (opted out): call them</span>
+                    <span class="review-call-note" th:if="${r.optedOut() and whatsappOn}" th:text="#{day-review.no-message}">No WhatsApp message (opted out): call them</span>
                 </span>
                 <a class="button sm" th:if="${r.phone()}" th:href="'tel:' + ${r.phone()}">
                     <svg class="icon" aria-hidden="true"><use href="#i-phone"/></svg><span th:text="#{attention.call}">Call</span></a>
@@ -49,8 +49,8 @@
             <input type="hidden" name="end" th:if="${end}" th:value="${end}">
             <input type="hidden" name="appointments" value="cancel">
             <button type="submit" class="danger"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>
-                <span th:text="#{day-review.cancel}">Cancel them and message the patients</span></button>
-            <p class="hint" th:text="#{day-review.cancel.hint}">Each patient gets a WhatsApp message that the doctor is not available then, with a button to book another time.</p>
+                <span th:text="${whatsappOn} ? #{day-review.cancel} : #{day-review.cancel.no-whatsapp}">Cancel them and message the patients</span></button>
+            <p class="hint" th:text="${whatsappOn} ? #{day-review.cancel.hint} : #{day-review.cancel.hint.no-whatsapp}">Each patient gets a WhatsApp message that the doctor is not available then, with a button to book another time.</p>
         </form>
         <form method="post" th:action="@{/doctors/{id}/days(id=${doctor.id})}" class="review-choice">
             <input type="hidden" name="date" th:value="${date}">
@@ -60,7 +60,7 @@
             <input type="hidden" name="appointments" value="keep">
             <button type="submit"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
                 <span th:text="#{day-review.keep}">Keep the appointments</span></button>
-            <p class="hint" th:text="#{day-review.keep.hint}">Only new bookings stop; these patients stay booked and still get their reminders.</p>
+            <p class="hint" th:text="${whatsappOn} ? #{day-review.keep.hint} : #{day-review.keep.hint.no-whatsapp}">Only new bookings stop; these patients stay booked and still get their reminders.</p>
         </form>
     </div>
     <a class="button ghost" th:href="@{/doctors/{id}(id=${doctor.id})}" th:text="#{day-review.back}">Don't change the day</a>

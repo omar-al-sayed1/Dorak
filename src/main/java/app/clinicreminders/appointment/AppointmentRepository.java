@@ -46,6 +46,9 @@ public interface AppointmentRepository extends Repository<Appointment, Long> {
 
     List<Appointment> findByClinicIdAndPatientIdAndStartsAtAfter(Long clinicId, Long patientId, Instant after);
 
+    /** The clinic's appointments after a moment, in these states: what reminders are planned for. */
+    List<Appointment> findByClinicIdAndStartsAtAfterAndStatusIn(Long clinicId, Instant after, Collection<AppointmentStatus> statuses);
+
     /** The patient's next active appointment ("My appointment" on WhatsApp). */
     @Query("""
             select a from Appointment a

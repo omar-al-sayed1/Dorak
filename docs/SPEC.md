@@ -125,6 +125,21 @@ number id, business account id and access token (encrypted), and send a test mes
 A seed command creates a "Dr. Demo" clinic with sample doctors, hours and appointments for sales
 demos.
 
+#### WhatsApp optional per clinic
+
+- A switch on **Add a clinic** (on by default) and on the clinic's page ("WhatsApp reminders and
+  booking"); changing it on the clinic's page asks for confirmation and says what changes.
+- **Off (dashboard only):** no reminders are planned or sent (pending ones are cancelled), and no
+  WhatsApp message goes out for the clinic at all (`WhatsAppMessenger` refuses: `DISABLED`). The
+  clinic's dashboard shows nothing about WhatsApp: no reminder switches, Info on WhatsApp preview or
+  Needs attention bell; no WhatsApp booking figures, confirmations or message costs on Today and the
+  report; no "messages in" language or opted-out marks; closing a day cancels without messaging.
+  Its setup is two steps (details, a login), with nothing to connect. The reminder switches it had
+  are kept for when WhatsApp comes back.
+- **On again:** reminders are planned again for its upcoming appointments.
+- **Fee:** the general plan has a second monthly fee, without WhatsApp ($20 to start); a clinic on
+  the plan pays the one that matches its switch, unless it has a fee of its own.
+
 #### Operator: finding and deleting clinics
 
 - **Clinics list** (`/operator`): search by name; filter by WhatsApp connection, setup finished or

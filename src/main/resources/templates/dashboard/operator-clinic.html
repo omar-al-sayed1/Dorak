@@ -43,6 +43,7 @@
         <div class="progress"><span th:style="'width:' + ${100 * ready / steps} + '%'"></span></div>
         <ul class="checklist">
             <li class="done"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span th:text="#{operator.step.details}">Clinic details</span></li>
+            <th:block th:if="${clinic.whatsAppEnabled}">
             <li th:classappend="${connection.phoneNumberId() != null} ? 'done'">
                 <svg class="icon" aria-hidden="true"><use th:href="${connection.phoneNumberId() != null} ? '#i-check' : '#i-x'"/></svg>
                 <span th:text="#{operator.whatsapp.phone-number-id}">Phone number ID</span></li>
@@ -52,13 +53,32 @@
             <li th:classappend="${connection.hasToken()} ? 'done'">
                 <svg class="icon" aria-hidden="true"><use th:href="${connection.hasToken()} ? '#i-check' : '#i-x'"/></svg>
                 <span th:text="#{operator.whatsapp.token}">Access token</span></li>
+            </th:block>
             <li th:classappend="${!logins.isEmpty()} ? 'done'">
                 <svg class="icon" aria-hidden="true"><use th:href="${!logins.isEmpty()} ? '#i-check' : '#i-x'"/></svg>
                 <span th:text="#{operator.step.logins}">At least one login</span></li>
         </ul>
     </section>
 
-    <div class="grid-2">
+    <!--/*
+      WhatsApp on or off for this clinic. Flipping the switch asks first (app.js, data-wa-mode); off,
+      the clinic's dashboard loses everything WhatsApp and the plan's lower fee applies.
+    */-->
+    <section class="card wa-mode" th:classappend="${clinic.whatsAppEnabled} ? 'is-on' : 'is-off'">
+        <form method="post" th:action="@{/operator/clinics/{id}/whatsapp-mode(id=${clinic.id})}" class="wa-mode-form"
+              th:attr="data-confirm-on=#{operator.whatsapp-mode.confirm-on(${clinic.name}, ${feeOn})},data-confirm-off=#{operator.whatsapp-mode.confirm-off(${clinic.name}, ${feeOff})}">
+            <input type="hidden" name="enabled" th:value="${!clinic.whatsAppEnabled}">
+            <label class="setting">
+                <span class="wa-choice-icon" aria-hidden="true"><svg class="icon"><use href="#i-chat"/></svg></span>
+                <span class="grow"><strong th:text="#{operator.clinic.whatsapp}">WhatsApp reminders and booking</strong>
+                    <span class="hint" th:text="${clinic.whatsAppEnabled} ? #{operator.whatsapp-mode.on(${feeOn})} : #{operator.whatsapp-mode.off(${feeOff})}">
+                        On: reminders and booking on WhatsApp.</span></span>
+                <input type="checkbox" class="switch" data-wa-mode th:checked="${clinic.whatsAppEnabled}" th:aria-label="#{operator.clinic.whatsapp}">
+            </label>
+        </form>
+    </section>
+
+    <div class="grid-2" th:if="${clinic.whatsAppEnabled}">
         <section class="card">
             <div class="section-head"><h2 th:text="#{operator.whatsapp}">WhatsApp</h2></div>
             <p class="hint" th:text="#{operator.whatsapp.hint}">From Meta Business Settings.</p>

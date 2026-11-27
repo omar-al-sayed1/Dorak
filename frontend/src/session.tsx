@@ -20,6 +20,8 @@ export interface Session {
   attentionCount: number | null;
   /** The clinic's payment for the service is near or late (front desk); the owner's bar links to Billing. */
   billing?: { status: "due-soon" | "overdue" | "paused"; dueOn: string; days: number; owner: boolean } | null;
+  /** False for a dashboard-only clinic: nothing about WhatsApp is shown. Missing counts as true. */
+  whatsApp?: boolean;
   csrf: Csrf;
 }
 

@@ -165,6 +165,7 @@ class OperatorReportController {
         model.addAttribute("money", ReportView.moneyView(balances.month(id, report.month().from(), report.month().to())));
         model.addAttribute("active", "operator-report");
         model.addAttribute("operatorView", true);
+        model.addAttribute("whatsappOn", clinic.isWhatsAppEnabled());
         return "dashboard/report";
     }
 

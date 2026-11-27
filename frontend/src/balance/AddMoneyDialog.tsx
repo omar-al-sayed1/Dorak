@@ -16,6 +16,19 @@ export interface Picked {
   hue: number;
   /** What they owe now (negative: in credit). */
   balance: number;
+  /** Added from New patient, but that name on that number was already a patient: theirs is used. */
+  existing?: boolean;
+}
+
+/** What POST /api/patients answers: the patient to put money on. */
+interface Added {
+  id: number;
+  name: string;
+  phone: string;
+  initials: string;
+  hue: number;
+  balance: number;
+  existing: boolean;
 }
 
 type Kind = "OWES" | "PAID";
@@ -66,6 +79,7 @@ export function AddMoneyDialog({ patient = null, onClose }: { patient?: Picked |
 function PatientPicker({ onPick }: { onPick: (patient: Picked) => void }) {
   const t = useT();
   const [query, setQuery] = useState("");
+  const [adding, setAdding] = useState(false);
   const [search, setSearch] = useState("");
   useEffect(() => {
     const timer = setTimeout(() => setSearch(query.trim()), 200);
@@ -82,6 +96,10 @@ function PatientPicker({ onPick }: { onPick: (patient: Picked) => void }) {
   const pick = (row: PatientsPage["patients"][number]) =>
     onPick({ id: row.id, name: row.name, phone: row.phone, initials: row.initials, hue: row.hue, balance: row.balance ?? 0 });
   const rows = found.data?.patients ?? [];
+
+  if (adding) {
+    return <NewPatientForm typed={query.trim()} onAdded={onPick} onBack={() => setAdding(false)} />;
+  }
 
   return (
     <section className="form-section stack">
@@ -114,8 +132,76 @@ function PatientPicker({ onPick }: { onPick: (patient: Picked) => void }) {
             </button>
           </li>
         ))}
+        {/* Not a patient yet: add them here, with what was typed as their name or number. */}
+        <li>
+          <button type="button" className={rows.length === 0 && found.data ? "pick pick-new first" : "pick pick-new"}
+                  onClick={() => setAdding(true)}>
+            <span className="avatar sm pick-new-icon"><Icon name="plus" /></span>
+            <span className="grow">
+              <strong>{t("add.new")}</strong>
+              <span className="muted small">{query.trim() !== "" && rows.length === 0 ? t("add.new.typed", query.trim()) : t("add.new.hint")}</span>
+            </span>
+            <Icon name="chevron-right" flip />
+          </button>
+        </li>
       </ul>
     </section>
+  );
+}
+
+/**
+ * A new patient for money not about a visit: a name and a phone number, then straight on to the
+ * amount. What was typed in the search starts the form: digits as the number, words as the name.
+ * The same name on the same number is the same patient, and theirs is used.
+ */
+function NewPatientForm({ typed, onAdded, onBack }: {
+  typed: string; onAdded: (patient: Picked) => void; onBack: () => void;
+}) {
+  const t = useT();
+  const queries = useQueryClient();
+  const number = /^[+\d\s()-]+$/.test(typed) && /\d{3}/.test(typed);
+  const [name, setName] = useState(number ? "" : typed);
+  const [phone, setPhone] = useState(number ? typed : "");
+  const add = useMutation({
+    mutationFn: () => api<Added>("/api/patients", { method: "POST", body: JSON.stringify({ name, phone }) }),
+    onSuccess: (added) => {
+      void queries.invalidateQueries({ queryKey: ["patients"] });
+      onAdded({ id: added.id, name: added.name, phone: added.phone, initials: added.initials, hue: added.hue,
+        balance: added.balance, existing: added.existing });
+    },
+  });
+  const error = add.error instanceof HttpError ? errorKey(add.error) : null;
+  const ready = name.trim() !== "" && phone.trim() !== "";
+
+  return (
+    <form className="form-section stack new-patient" onSubmit={(event) => {
+      event.preventDefault();
+      if (ready && !add.isPending) {
+        add.mutate();
+      }
+    }}>
+      <div className="section-head"><Icon name="user" /><h2>{t("add.new")}</h2></div>
+      <label>
+        <span>{t("add.new.name")}</span>
+        <input value={name} onChange={(event) => setName(event.target.value)} dir="auto" autoComplete="off" maxLength={100}
+               autoFocus={!number || name === ""} required />
+      </label>
+      <label>
+        <span>{t("add.new.phone")}</span>
+        <span className="field-icon">
+          <Icon name="phone" />
+          <input value={phone} onChange={(event) => setPhone(event.target.value)} dir="ltr" inputMode="tel" autoComplete="off"
+                 placeholder="70 123 456" required />
+        </span>
+      </label>
+      {error && <p className="alert" role="alert"><Icon name="alert" /><span>{t(error)}</span></p>}
+      <div className="form-actions">
+        <button type="submit" className="primary" disabled={!ready || add.isPending}>
+          <Icon name="check" /><span>{t("add.new.save")}</span>
+        </button>
+        <button type="button" className="ghost" onClick={onBack}>{t("add.new.back")}</button>
+      </div>
+    </form>
   );
 }
 
@@ -163,6 +249,7 @@ function MoneyForm({ patient, onChange }: { patient: Picked; onChange?: () => vo
         </span>
         {onChange && <button type="button" className="ghost sm" onClick={onChange}>{t("add.change")}</button>}
       </div>
+      {patient.existing && <p className="hint"><Icon name="info" /> {t("add.new.existing")}</p>}
 
       {done && (
         <div className="notice pay-done" role="status">

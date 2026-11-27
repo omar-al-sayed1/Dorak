@@ -3,6 +3,7 @@ package app.clinicreminders.api;
 import java.time.Clock;
 
 import app.clinicreminders.booking.ConversationRepository;
+import app.clinicreminders.clinic.Clinic;
 import app.clinicreminders.clinic.ClinicRepository;
 import app.clinicreminders.common.Language;
 import app.clinicreminders.dashboard.BillingViews;
@@ -35,7 +36,7 @@ class SessionApi {
      */
     record Session(String username, String role, @Nullable Long clinicId, @Nullable String clinicName,
                    @Nullable Long doctorId, String language, String initials, int hue, @Nullable Long attentionCount,
-                   BillingViews.@Nullable Notice billing, Csrf csrf) {
+                   BillingViews.@Nullable Notice billing, boolean whatsApp, Csrf csrf) {
     }
 
     record Csrf(String headerName, String token) {
@@ -73,6 +74,7 @@ class SessionApi {
         return new Session(staff.username(), staff.role().name(), clinicId, clinicName, staff.doctorId(),
                 StaffLocaleResolver.language(request).code(), avatars.initials(staff.username()),
                 avatars.hue(staff.username()), attention, billing.notice(staff, StaffLocaleResolver.language(request)),
+                clinicId == null || clinics.findById(clinicId).map(Clinic::isWhatsAppEnabled).orElse(true),
                 new Csrf(csrf.getHeaderName(), csrf.getToken()));
     }
 

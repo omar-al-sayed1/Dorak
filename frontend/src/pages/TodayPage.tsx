@@ -181,15 +181,16 @@ function useDayKeys(day: Today | undefined) {
 
 function StatsRow({ stats }: { stats: Stats }) {
   const t = useT();
+  const whatsApp = useSession().whatsApp !== false;
   return (
     <div className="stats">
-      <Stat label={t("today.stats.total")} value={stats.total} sub={t("today.stats.whatsapp", stats.whatsApp)} />
-      <div className="stat tone-ok">
+      <Stat label={t("today.stats.total")} value={stats.total} sub={whatsApp ? t("today.stats.whatsapp", stats.whatsApp) : undefined} />
+      {whatsApp && <div className="stat tone-ok">
         <div className="stat-head"><span className="stat-label">{t("today.stats.confirmed")}</span></div>
         <div className="stat-value"><CountUp value={stats.confirmed} /></div>
         <div className="meter" role="presentation"><span style={{ width: `${stats.confirmedPercent}%` }} /></div>
         <div className="stat-sub">{t("today.stats.confirmed-share", stats.confirmedPercent)}</div>
-      </div>
+      </div>}
       <Stat tone="tone-arrived" label={t("today.stats.arrived")} value={stats.arrived} />
       <Stat tone="tone-warn" label={t("today.stats.no-show")} value={stats.noShows} />
       <Stat tone="tone-danger" label={t("today.stats.cancelled")} value={stats.cancelled}
@@ -251,6 +252,7 @@ function Stat({ label, value, sub = "", tone }: { label: string; value: number; 
 
 function Doctors({ day, onPay }: { day: Today; onPay: (appointmentId: number) => void }) {
   const t = useT();
+  const session = useSession();
   if (day.doctors.length === 0) {
     return (
       <div className="card empty">
@@ -280,7 +282,7 @@ function Doctors({ day, onPay }: { day: Today; onPay: (appointmentId: number) =>
             <div className="empty">
               <span className="empty-icon"><Icon name="clock" /></span>
               <strong>{t("today.empty")}</strong>
-              <p>{t("today.empty.hint")}</p>
+              <p>{t(session.whatsApp !== false ? "today.empty.hint" : "today.empty.hint.no-whatsapp")}</p>
             </div>
           ) : (
             <ol className="timeline">
@@ -330,7 +332,9 @@ function AppointmentItem({ row, nowLine, onPay, next = false }: {
   const t = useT();
   const act = useAppointmentAction(row);
   // Money is the front desk's; a visit whose patient was deleted has no one to charge.
-  const canPay = useSession().doctorId === null && row.patientName !== null && !row.cancelled;
+  const session = useSession();
+  const canPay = session.doctorId === null && row.patientName !== null && !row.cancelled;
+  const whatsApp = session.whatsApp !== false;
   const justChanged = useJustChanged(row.status);
   const classes = ["appt", `s-${row.status}`, row.cancelledByPatient ? "by-patient" : "", row.past ? "is-past" : "",
     next ? "is-next" : "", justChanged ? "just-changed" : ""]
@@ -341,9 +345,9 @@ function AppointmentItem({ row, nowLine, onPay, next = false }: {
       <li className={classes} data-appointment={row.id}>
         <div className="appt-time">
           <strong>{row.time}</strong>
-          <span className={row.source === "WHATSAPP" ? "source whatsapp" : "source"}>
+          {whatsApp && <span className={row.source === "WHATSAPP" ? "source whatsapp" : "source"}>
             <Icon name={row.source === "WHATSAPP" ? "chat" : "pencil"} /><span>{t(`source.${row.source}`)}</span>
-          </span>
+          </span>}
         </div>
         <div className="appt-who">
           <span className="avatar sm" style={{ ["--hue" as string]: row.hue }}>{row.initials}</span>

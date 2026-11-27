@@ -30,9 +30,9 @@
                 <div th:if="${details.phone()}"><dt th:text="#{form.phone}">Phone</dt>
                     <dd><a class="phone" th:href="'tel:' + ${details.phone()}" dir="ltr">
                         <svg class="icon" aria-hidden="true"><use href="#i-phone"/></svg><span th:text="${details.phone()}">+96170123456</span></a></dd></div>
-                <div th:if="${details.language()}"><dt th:text="#{form.language}">Messages in</dt>
+                <div th:if="${details.language() != null and whatsappOn}"><dt th:text="#{form.language}">Messages in</dt>
                     <dd th:text="#{'language.' + ${details.language()}}">Arabic</dd></div>
-                <div><dt th:text="#{appointment.source}">Booked</dt>
+                <div th:if="${whatsappOn}"><dt th:text="#{appointment.source}">Booked</dt>
                     <dd><span class="source" th:classappend="${details.source() == 'WHATSAPP'} ? 'whatsapp'">
                         <svg class="icon" aria-hidden="true"><use th:href="${details.source() == 'WHATSAPP'} ? '#i-chat' : '#i-pencil'"/></svg>
                         <span th:text="#{'source.' + ${details.source()}}">WhatsApp</span></span></dd></div>

@@ -12,7 +12,9 @@ import java.util.stream.Collectors;
 import app.clinicreminders.api.PatientTable.Filter;
 import app.clinicreminders.api.PatientTable.Row;
 import app.clinicreminders.api.PatientTable.Sort;
+import app.clinicreminders.balance.Balances;
 import app.clinicreminders.common.NotFoundException;
+import app.clinicreminders.common.PhoneNumbers;
 import app.clinicreminders.dashboard.Avatars;
 import app.clinicreminders.dashboard.ClinicContext;
 import app.clinicreminders.dashboard.ClinicContext.Ctx;
@@ -23,10 +25,13 @@ import app.clinicreminders.staff.StaffPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -62,14 +67,31 @@ class PatientsApi {
     record PatientsJson(long total, Counts counts, List<PatientJson> patients, @Nullable Integer nextPage) {
     }
 
+    /** A new patient from the front desk (Add Payment): a name and a Lebanese number. */
+    record NewPatient(@Nullable String name, @Nullable String phone) {
+    }
+
+    /**
+     * The patient to put money on, as the Add Payment dialog shows them.
+     *
+     * @param existing the number already had a patient by that name: theirs is used, not a copy
+     */
+    record AddedPatient(long id, String name, String phone, String initials, int hue, BigDecimal balance, boolean existing) {
+    }
+
+    /** Longest patient name accepted. */
+    static final int NAME_MAX = 100;
+
     private final ClinicContext context;
     private final PatientTable table;
     private final PatientService patients;
     private final DoctorRepository doctors;
     private final Avatars avatars;
+    private final Balances balances;
 
     PatientsApi(ClinicContext context, PatientTable table, PatientService patients, DoctorRepository doctors,
-                Avatars avatars) {
+                Avatars avatars, Balances balances) {
+        this.balances = balances;
         this.context = context;
         this.table = table;
         this.patients = patients;
@@ -109,6 +131,31 @@ class PatientsApi {
     }
 
     /** The patient's card, as the hover card shows it: the table's line for them. */
+    /**
+     * Adds a patient (front desk only, SecurityConfig), for money that is not about a visit. The same
+     * name on the same number is the same patient: theirs comes back, with their balance. A new one
+     * gets the clinic's language; another name on a number that is known joins that family.
+     *
+     * @return 400 with error.name-required or error.phone when one is missing or does not look right
+     */
+    @PostMapping("/api/patients")
+    ResponseEntity<?> add(@AuthenticationPrincipal StaffPrincipal staff, HttpServletRequest request, @RequestBody NewPatient body) {
+        Ctx ctx = context.of(staff, request);
+        String name = body.name() == null ? "" : Patient.normalizeName(body.name());
+        if (name.isEmpty() || name.length() > NAME_MAX) {
+            return ResponseEntity.badRequest().body(Map.of("error", "error.name-required"));
+        }
+        String phone = body.phone() == null ? null : PhoneNumbers.parseLebanese(body.phone());
+        if (phone == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "error.phone"));
+        }
+        boolean existing = patients.household(ctx.clinicId(), phone).stream().anyMatch(patient -> patient.hasName(name));
+        Patient patient = patients.findOrCreate(ctx.clinicId(), phone, name, ctx.clinic().getDefaultLanguage());
+        return ResponseEntity.ok(new AddedPatient(patient.getId(), patient.getName(), patient.getPhoneE164(),
+                avatars.initials(patient.getName()), avatars.hue(patient.getName()),
+                balances.balanceOf(ctx.clinicId(), patient.getId()), existing));
+    }
+
     @GetMapping("/api/patients/{id}/card")
     PatientJson card(@PathVariable long id, @AuthenticationPrincipal StaffPrincipal staff, HttpServletRequest request) {
         Ctx ctx = context.of(staff, request);

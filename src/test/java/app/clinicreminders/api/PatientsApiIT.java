@@ -141,6 +141,43 @@ class PatientsApiIT extends DashboardTest {
         assertThat(names("/api/patients")).containsExactly("Karim", "Rana Haddad", "Sami Haddad");
     }
 
+
+    @Test
+    void theFrontDeskAddsANewPatientForMoneyAndTheSameNameOnTheSameNumberIsReused() {
+        assertThat(addPatient(secretary, "{\"name\":\"  Maya   Khoury \",\"phone\":\"03 555 666\"}")).hasStatusOk().bodyJson()
+                .satisfies(json -> {
+                    assertThat(json).extractingPath("$.name").isEqualTo("Maya Khoury");
+                    assertThat(json).extractingPath("$.phone").isEqualTo("+9613555666");
+                    assertThat(json).extractingPath("$.balance").isEqualTo(0.0);
+                    assertThat(json).extractingPath("$.existing").isEqualTo(false);
+                });
+        Patient maya = patientRepository.findByClinicIdAndPhoneE164OrderById(clinic.getId(), "+9613555666").getFirst();
+        assertThat(maya.getLanguage()).as("the clinic's language").isEqualTo(clinic.getDefaultLanguage());
+
+        assertThat(addPatient(secretary, "{\"name\":\"Karim\",\"phone\":\"71 222 333\"}")).as("already a patient: theirs, with what they owe")
+                .bodyJson().satisfies(json -> {
+                    assertThat(json).extractingPath("$.existing").isEqualTo(true);
+                    assertThat(json).extractingPath("$.balance").isEqualTo(40.0);
+                });
+        assertThat(addPatient(secretary, "{\"name\":\"Lea Haddad\",\"phone\":\"70 123 456\"}")).as("a new name on a known number: family")
+                .bodyJson().extractingPath("$.existing").isEqualTo(false);
+        assertThat(patientRepository.findByClinicIdAndPhoneE164OrderById(clinic.getId(), "+96170123456")).hasSize(3);
+        assertThat(patientRepository.findByClinicIdAndPhoneE164OrderById(clinic.getId(), "+96171222333")).as("no copy").hasSize(1);
+    }
+
+    @Test
+    void aNewPatientNeedsANameAndANumberAndOnlyTheFrontDeskAddsOne() {
+        assertThat(addPatient(secretary, "{\"name\":\" \",\"phone\":\"70 999 888\"}")).hasStatus(400)
+                .bodyJson().extractingPath("$.error").isEqualTo("error.name-required");
+        assertThat(addPatient(secretary, "{\"name\":\"Maya\",\"phone\":\"12\"}")).hasStatus(400)
+                .bodyJson().extractingPath("$.error").isEqualTo("error.phone");
+        assertThat(addPatient(doctorLoginOf(khoury), "{\"name\":\"Maya\",\"phone\":\"70 999 888\"}")).hasStatus(403);
+        assertThat(patientRepository.findByClinicIdAndPhoneE164OrderById(clinic.getId(), "+96170999888")).isEmpty();
+    }
+
+    private org.springframework.test.web.servlet.assertj.MvcTestResult addPatient(StaffPrincipal staff, String body) {
+        return post(staff, "/api/patients").contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body).exchange();
+    }
     private java.util.List<Object> names(String uri) {
         java.util.List<Object> names = new java.util.ArrayList<>();
         assertThat(get(secretary, uri)).hasStatusOk().bodyJson().extractingPath("$.patients[*].name").asArray()

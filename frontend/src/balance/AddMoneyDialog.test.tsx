@@ -10,6 +10,9 @@ const messages: Record<string, string> = {
   "add.paid": "They paid", "add.owes": "They owe", "add.amount": "Amount", "add.save-owes": "Add to their balance",
   "add.save-paid": "Record the payment", "add.saved-owes": "Added to their balance.", "ledger.owes": "Owes {0}",
   "ledger.settled": "Nothing owed", "ledger.credit": "In credit {0}", "add.search": "Name or phone",
+  "add.new": "New patient", "add.new.typed": "Add {0} as a new patient", "add.new.hint": "Not on the list? Add them here.",
+  "add.new.name": "Name", "add.new.phone": "Phone", "add.new.save": "Continue", "add.new.back": "Back to the search",
+  "add.none": "No patient found.", "error.phone": "That phone number does not look right.",
   "method.CASH": "Cash", "method.WHISH": "Whish", "method.OMT": "OMT", "method.CARD": "Card", "method.BANK": "Bank transfer",
 };
 
@@ -93,5 +96,50 @@ describe("AddMoneyDialog", () => {
     await waitFor(() => expect(fetch.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true));
     const post = fetch.mock.calls.find(([, init]) => init?.method === "POST");
     expect(JSON.parse(String(post?.[1]?.body))).toEqual({ kind: "PAID", amount: 20, currency: "USD", method: "WHISH" });
+  });
+  it("adds a new patient when the search finds nobody, then records their payment", async () => {
+    let added = false;
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/patients" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { phone: string };
+        if (body.phone === "12") {
+          return new Response(JSON.stringify({ error: "error.phone" }), { status: 400 });
+        }
+        added = true;
+        return new Response(JSON.stringify({ id: 31, name: "Maya Khoury", phone: "+9613555666", initials: "MK", hue: 80,
+          balance: 0, existing: false }), { status: 200 });
+      }
+      if (init?.method === "POST") {
+        return new Response(JSON.stringify({ balance: -25, receiptUrl: "/r/abc" }), { status: 200 });
+      }
+      return url.startsWith("/api/patients")
+        ? new Response(JSON.stringify({ ...found, total: 0, patients: [] }), { status: 200 })
+        : new Response(null, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <I18nProvider messages={messages}><AddMoneyDialog onClose={() => {}} /></I18nProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Name or phone"), { target: { value: "Maya Khoury" } });
+    fireEvent.click(await screen.findByRole("button", { name: /Add Maya Khoury as a new patient/ }));
+    expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Maya Khoury");
+
+    fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "12" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText("That phone number does not look right.")).toBeTruthy();
+    expect(added).toBe(false);
+
+    fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "03 555 666" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText("+9613555666")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: "25" } });
+    fireEvent.click(screen.getByRole("button", { name: "Record the payment" }));
+    await waitFor(() => expect(fetch.mock.calls.map(([url]) => url)).toContain("/api/money/patients/31"));
   });
 });

@@ -166,6 +166,7 @@ class OperatorBillingController {
         model.addAttribute("quickCounts", ClinicSignals.counts(signals));
         model.addAttribute("statuses", List.of("trial", "active", "due-soon", "overdue", "paused"));
         model.addAttribute("plan", billing.plan());
+        model.addAttribute("planNoWhatsApp", billing.plan(false));
         Map<Long, Clinic> byId = everyClinic.stream().collect(Collectors.toMap(Clinic::getId, Function.identity()));
         model.addAttribute("latest", billing.latestPayments().stream()
                 .filter(payment -> byId.containsKey(payment.getClinicId()))
@@ -182,18 +183,21 @@ class OperatorBillingController {
     /** The general plan: what every clinic pays unless its own subscription says otherwise. */
     @PostMapping("/billing/plan")
     String savePlan(RedirectAttributes redirect, @RequestParam(defaultValue = "") String monthlyFee,
+                    @RequestParam(defaultValue = "") String monthlyFeeNoWhatsApp,
                     @RequestParam(defaultValue = "0") String discount6, @RequestParam(defaultValue = "0") String discount12,
                     @RequestParam(defaultValue = "" + Terms.DEFAULT_GRACE_DAYS) String graceDays,
                     @RequestParam(defaultValue = "INCLUDED") MessageCosts messageCosts) {
         try {
             BigDecimal fee = amount(monthlyFee);
+            // Left out (an older form, a script): the fee without WhatsApp stays as it is.
+            BigDecimal feeNoWhatsApp = monthlyFeeNoWhatsApp.isBlank() ? billing.plan(false).monthlyFeeUsd() : amount(monthlyFeeNoWhatsApp);
             Integer off6 = whole(discount6);
             Integer off12 = whole(discount12);
             Integer grace = whole(graceDays);
-            if (fee == null || off6 == null || off12 == null || grace == null) {
+            if (fee == null || feeNoWhatsApp == null || off6 == null || off12 == null || grace == null) {
                 throw new IllegalArgumentException("plan");
             }
-            billing.savePlan(fee, off6, off12, grace, messageCosts);
+            billing.savePlan(fee, feeNoWhatsApp, off6, off12, grace, messageCosts);
             redirect.addFlashAttribute("notice", "notice.saved");
         } catch (IllegalArgumentException e) {
             redirect.addFlashAttribute("error", "error.billing");
@@ -218,7 +222,8 @@ class OperatorBillingController {
         model.addAttribute("periods", Subscription.PERIODS.stream().sorted().toList());
         model.addAttribute("methods", Method.values());
         model.addAttribute("maxGrace", Terms.MAX_GRACE_DAYS);
-        Terms plan = billing.plan();
+        // The clinic's own empty fields show the plan it is on: with or without WhatsApp.
+        Terms plan = billing.plan(clinic.isWhatsAppEnabled());
         model.addAttribute("plan", plan);
         model.addAttribute("planFee", ReportView.dollars(plan.monthlyFeeUsd()));
         model.addAttribute("payTo", views.payTo());

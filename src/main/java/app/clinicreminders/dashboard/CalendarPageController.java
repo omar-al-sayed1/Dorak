@@ -129,7 +129,7 @@ class CalendarPageController {
         Locale locale = language.locale();
         CalendarFile file = new CalendarFile(appointment.getCalendarToken(), appointment.getStartsAt(),
                 appointment.getEndsAt(), doctor.getDisplayName() + " · " + clinic.getName(), clinic.getAddress(),
-                messages.getMessage("calendar.change", null, locale),
+                messages.getMessage(clinic.isWhatsAppEnabled() ? "calendar.change" : "calendar.change.call", null, locale),
                 messages.getMessage("calendar.alarm", new Object[] {doctor.getDisplayName()}, locale),
                 appointment.getStatus() == AppointmentStatus.CANCELLED);
         return new Event(appointment, clinic, doctor, language, file);

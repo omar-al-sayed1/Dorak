@@ -104,7 +104,7 @@
                     <div class="menu-panel">
                         <!--/* Phones only (CSS): on computers the bell beside the menu and the sidebar have these. */-->
                         <th:block th:if="${staff.clinicId() != null}">
-                            <a class="menu-attention" th:if="${staff.doctorId() == null}" th:href="@{/attention}"
+                            <a class="menu-attention" th:if="${staff.doctorId() == null and whatsappOn}" th:href="@{/attention}"
                                th:classappend="${active == 'attention'} ? 'active'" th:attr="aria-current=${active == 'attention'} ? 'page'">
                                 <svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg><span th:text="#{nav.attention}">Needs attention</span>
                                 <span class="nav-badge" th:if="${attentionCount != null and attentionCount > 0}" th:text="${attentionCount}">2</span></a>
@@ -140,7 +140,7 @@
                         </form>
                     </div>
                 </details>
-                <a class="bell" th:if="${staff.clinicId() != null and staff.doctorId() == null}" th:href="@{/attention}"
+                <a class="bell" th:if="${staff.clinicId() != null and staff.doctorId() == null and whatsappOn}" th:href="@{/attention}"
                    th:classappend="(${active == 'attention'} ? 'active ' : '') + (${attentionCount != null and attentionCount > 0} ? 'has-alerts' : '')"
                    th:attr="aria-current=${active == 'attention'} ? 'page'"
                    th:title="#{nav.attention}"

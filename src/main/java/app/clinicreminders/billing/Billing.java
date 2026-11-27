@@ -69,10 +69,16 @@ public class Billing {
         this.jdbc = jdbc;
     }
 
-    /** The general plan: what a clinic pays unless its own subscription says otherwise. */
+    /** The general plan: what a clinic with WhatsApp pays unless its own subscription says otherwise. */
     @Transactional(readOnly = true)
     public Terms plan() {
-        return thePlan().terms();
+        return thePlan().terms(true);
+    }
+
+    /** The general plan for a clinic with or without WhatsApp: only the monthly fee differs. */
+    @Transactional(readOnly = true)
+    public Terms plan(boolean whatsApp) {
+        return thePlan().terms(whatsApp);
     }
 
     /** @throws IllegalArgumentException see {@link Terms#check} */
@@ -84,10 +90,29 @@ public class Billing {
         plans.save(plan);
     }
 
-    /** What this clinic is billed by: the general plan with the clinic's own terms over it. */
+    /**
+     * The general plan, with the monthly fee of a clinic without WhatsApp too.
+     *
+     * @throws IllegalArgumentException see {@link Terms#check}
+     */
+    @Transactional
+    public void savePlan(BigDecimal monthlyFeeUsd, BigDecimal monthlyFeeWithoutWhatsAppUsd, int discount6Percent,
+                         int discount12Percent, int graceDays, MessageCosts messageCosts) {
+        BillingPlan plan = thePlan();
+        plan.change(monthlyFeeUsd, discount6Percent, discount12Percent, graceDays, messageCosts);
+        plan.changeFeeWithoutWhatsApp(monthlyFeeWithoutWhatsAppUsd);
+        plans.save(plan);
+    }
+
+    /**
+     * What this clinic is billed by: the general plan (with or without WhatsApp, as the clinic is)
+     * with the clinic's own terms over it.
+     */
     @Transactional(readOnly = true)
     public Terms terms(Subscription subscription) {
-        return subscription.terms(plan());
+        boolean whatsApp = jdbc.sql("select whatsapp_enabled from clinic where id = :clinicId")
+                .param("clinicId", subscription.getClinicId()).query(Boolean.class).optional().orElse(true);
+        return subscription.terms(plan(whatsApp));
     }
 
     private BillingPlan thePlan() {

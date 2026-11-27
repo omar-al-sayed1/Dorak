@@ -98,7 +98,7 @@ public class ReminderSender {
                     switch (outcome.result()) {
                         case SENT -> record(reminderId, ReminderStatus.SENT, outcome.waMessageId());
                         case FAILED -> record(reminderId, ReminderStatus.FAILED, null);
-                        case OPTED_OUT -> record(reminderId, ReminderStatus.SKIPPED, null);
+                        case OPTED_OUT, DISABLED -> record(reminderId, ReminderStatus.SKIPPED, null);
                     }
                 }
                 case null -> throw new IllegalStateException("No decision for reminder " + reminderId);
@@ -163,8 +163,8 @@ public class ReminderSender {
 
     private static boolean switchedOn(Clinic clinic, ReminderKind kind) {
         return switch (kind) {
-            case H24 -> clinic.isReminderH24Enabled();
-            case H2 -> clinic.isReminderH2Enabled();
+            case H24 -> clinic.remindsH24();
+            case H2 -> clinic.remindsH2();
         };
     }
 }

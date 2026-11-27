@@ -12,9 +12,9 @@
         <div class="stat">
             <div class="stat-head"><span class="stat-label" th:text="#{today.stats.total}">Appointments</span></div>
             <div class="stat-value" th:text="${stats.total()}">12</div>
-            <div class="stat-sub" th:text="#{today.stats.whatsapp(${stats.whatsApp() + ''})}">4 booked on WhatsApp</div>
+            <div class="stat-sub" th:if="${whatsappOn}" th:text="#{today.stats.whatsapp(${stats.whatsApp() + ''})}">4 booked on WhatsApp</div>
         </div>
-        <div class="stat tone-ok">
+        <div class="stat tone-ok" th:if="${whatsappOn}">
             <div class="stat-head"><span class="stat-label" th:text="#{today.stats.confirmed}">Confirmed</span></div>
             <div class="stat-value" th:text="${stats.confirmed()}">7</div>
             <div class="meter" role="presentation"><span th:style="'width:' + ${stats.confirmedPercent()} + '%'"></span></div>
@@ -60,7 +60,7 @@
             <div class="empty" th:if="${d.rows().isEmpty()}">
                 <span class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg></span>
                 <strong th:text="#{today.empty}">No appointments.</strong>
-                <p th:text="#{today.empty.hint}">Free times stay open for booking on WhatsApp.</p>
+                <p th:text="${whatsappOn} ? #{today.empty.hint} : #{today.empty.hint.no-whatsapp}">Free times stay open for booking on WhatsApp.</p>
             </div>
 
             <ol class="timeline" th:unless="${d.rows().isEmpty()}">
@@ -71,7 +71,7 @@
                         th:attr="data-appointment=${r.id()}">
                         <div class="appt-time">
                             <strong th:text="${r.time()}">10:30 AM</strong>
-                            <span class="source" th:classappend="${r.source() == 'WHATSAPP'} ? 'whatsapp'">
+                            <span class="source" th:if="${whatsappOn}" th:classappend="${r.source() == 'WHATSAPP'} ? 'whatsapp'">
                                 <svg class="icon" aria-hidden="true"><use th:href="${r.source() == 'WHATSAPP'} ? '#i-chat' : '#i-pencil'"/></svg>
                                 <span th:text="#{'source.' + ${r.source()}}">WhatsApp</span></span>
                         </div>

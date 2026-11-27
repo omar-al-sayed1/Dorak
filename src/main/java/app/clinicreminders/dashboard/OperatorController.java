@@ -65,9 +65,12 @@ class OperatorController {
     static final String HELLO_WORLD = "hello_world";
     static final String HELLO_WORLD_LANGUAGE = "en_US";
 
-    /** @param ready how many of the {@link #SETUP_STEPS} onboarding steps are done */
+    /**
+     * @param ready    how many of the clinic's {@code steps} onboarding steps are done
+     * @param whatsApp off: a dashboard-only clinic, with no WhatsApp to connect
+     */
     record ClinicRow(long id, String name, String timezone, String language, int slotMinutes, boolean connected, long logins,
-                     int ready, @Nullable String billing, Signals signals) {
+                     int ready, int steps, boolean whatsApp, @Nullable String billing, Signals signals) {
 
         /** Not paid in time: overdue, or paused after the grace. */
         boolean late() {
@@ -75,7 +78,7 @@ class OperatorController {
         }
 
         public int readyPercent() {
-            return 100 * ready / SETUP_STEPS;
+            return 100 * ready / steps;
         }
     }
 
@@ -84,6 +87,9 @@ class OperatorController {
 
     /** Details, phone number id, business account id, access token, a login. */
     static final int SETUP_STEPS = 5;
+
+    /** Without WhatsApp: details and a login. */
+    static final int SETUP_STEPS_NO_WHATSAPP = 2;
 
     /** The result of a test message, shown once on the clinic page. */
     record TestOutcome(String result, String detail) {
@@ -145,7 +151,7 @@ class OperatorController {
                     Subscription subscription = subscriptions.get(c.getId());
                     return new ClinicRow(c.getId(), c.getName(), c.getTimezone().getId(), c.getDefaultLanguage().code(),
                             c.getSlotMinutes(), c.getWaPhoneNumberId() != null && c.getWaAccessTokenEncrypted() != null, logins,
-                            readySteps(c, logins), subscription == null ? null : BillingViews.key(
+                            readySteps(c, logins), setupSteps(c), c.isWhatsAppEnabled(), subscription == null ? null : BillingViews.key(
                                     billing.standing(subscription, LocalDate.ofInstant(clock.instant(), c.getTimezone()))),
                             signals.get(c.getId()));
                 })
@@ -155,13 +161,14 @@ class OperatorController {
                 .filter(c -> c.name().toLowerCase(Locale.ROOT).contains(wanted))
                 .filter(c -> quick.matches(c.signals()))
                 .filter(c -> switch (whatsapp) {
-                    case "connected" -> c.connected();
-                    case "not-connected" -> !c.connected();
+                    case "connected" -> c.whatsApp() && c.connected();
+                    case "not-connected" -> c.whatsApp() && !c.connected();
+                    case "off" -> !c.whatsApp();
                     default -> true;
                 })
                 .filter(c -> switch (setup) {
-                    case "done" -> c.ready() == SETUP_STEPS;
-                    case "unfinished" -> c.ready() < SETUP_STEPS;
+                    case "done" -> c.ready() == c.steps();
+                    case "unfinished" -> c.ready() < c.steps();
                     default -> true;
                 })
                 .filter(c -> switch (billed) {
@@ -182,7 +189,8 @@ class OperatorController {
         model.addAttribute("deleted", removal.restorable(clock.instant()));
         model.addAttribute("undoMinutes", ClinicRemoval.UNDO_WINDOW.toMinutes());
         model.addAttribute("defaultZone", Clinic.DEFAULT_ZONE.getId());
-        model.addAttribute("steps", SETUP_STEPS);
+        model.addAttribute("feeOn", ReportView.dollars(billing.plan(true).monthlyFeeUsd()));
+        model.addAttribute("feeOff", ReportView.dollars(billing.plan(false).monthlyFeeUsd()));
         return "dashboard/operator";
     }
 
@@ -190,7 +198,10 @@ class OperatorController {
     String create(RedirectAttributes redirect, @RequestParam(defaultValue = "") String name,
                   @RequestParam(defaultValue = "") String timezone, @RequestParam String defaultLanguage,
                   @RequestParam(defaultValue = "" + Clinic.DEFAULT_SLOT_MINUTES) int slotMinutes,
-                  @RequestParam(defaultValue = "") String email) {
+                  @RequestParam(defaultValue = "") String email,
+                  // The form's switch: without the form (scripts, tests), a clinic has WhatsApp.
+                  @RequestParam(defaultValue = "false") boolean whatsAppShown,
+                  @RequestParam(defaultValue = "false") boolean whatsApp) {
         if (!validEmail(email)) {
             redirect.addFlashAttribute("error", "error.email");
             return "redirect:/operator";
@@ -205,7 +216,7 @@ class OperatorController {
             return "redirect:/operator";
         }
         try {
-            Clinic clinic = clinics.create(name, zone, Language.fromCode(defaultLanguage), email);
+            Clinic clinic = clinics.create(name, zone, Language.fromCode(defaultLanguage), email, !whatsAppShown || whatsApp);
             scheduleSettings.changeSlotLength(clinic.getId(), slotMinutes);
             // Billed from the start, on the general plan: the first payment is due after the trial.
             billing.enrolAll(LocalDate.ofInstant(clock.instant(), zone), clock.instant());
@@ -225,7 +236,9 @@ class OperatorController {
         List<StaffUser> logins = accounts.logins(id);
         model.addAttribute("logins", logins);
         model.addAttribute("ready", readySteps(clinic, logins.size()));
-        model.addAttribute("steps", SETUP_STEPS);
+        model.addAttribute("steps", setupSteps(clinic));
+        model.addAttribute("feeOn", ReportView.dollars(billing.plan(true).monthlyFeeUsd()));
+        model.addAttribute("feeOff", ReportView.dollars(billing.plan(false).monthlyFeeUsd()));
         model.addAttribute("roles", List.of(StaffRole.OWNER, StaffRole.SECRETARY));
         model.addAttribute("webhookUrl", ServletUriComponentsBuilder.fromCurrentContextPath()
                 .path("/webhooks/whatsapp").toUriString());
@@ -309,6 +322,19 @@ class OperatorController {
         return redirectTo(id);
     }
 
+    /**
+     * Turns the clinic's WhatsApp (reminders and booking) on or off. The page asks first; off, the
+     * clinic's dashboard loses everything WhatsApp and the plan's lower fee applies.
+     */
+    @PostMapping("/clinics/{id}/whatsapp-mode")
+    String whatsAppMode(@PathVariable long id, @RequestParam boolean enabled, RedirectAttributes redirect) {
+        clinics.get(id);
+        if (clinics.changeWhatsApp(id, enabled)) {
+            redirect.addFlashAttribute("notice", enabled ? "notice.whatsapp-on" : "notice.whatsapp-off");
+        }
+        return redirectTo(id);
+    }
+
     @PostMapping("/clinics/{id}/subscribe")
     String subscribe(@PathVariable long id, RedirectAttributes redirect) {
         clinics.get(id);
@@ -344,6 +370,7 @@ class OperatorController {
             case FAILED -> new TestOutcome("failed", outcome.errorCode() == null ? outcome.errorTitle()
                     : "(#" + outcome.errorCode() + ") " + outcome.errorTitle());
             case OPTED_OUT -> new TestOutcome("opted-out", "");
+            case DISABLED -> new TestOutcome("disabled", "");
         });
         return redirectTo(id);
     }
@@ -412,8 +439,15 @@ class OperatorController {
         return minutes >= 5 && minutes <= 240;
     }
 
-    /** The clinic itself counts as the first step. */
+    static int setupSteps(Clinic clinic) {
+        return clinic.isWhatsAppEnabled() ? SETUP_STEPS : SETUP_STEPS_NO_WHATSAPP;
+    }
+
+    /** The clinic itself counts as the first step; without WhatsApp, only a login is left. */
     static int readySteps(Clinic clinic, long logins) {
+        if (!clinic.isWhatsAppEnabled()) {
+            return 1 + (logins > 0 ? 1 : 0);
+        }
         return 1 + (clinic.getWaPhoneNumberId() != null ? 1 : 0) + (clinic.getWaBusinessAccountId() != null ? 1 : 0)
                 + (clinic.getWaAccessTokenEncrypted() != null ? 1 : 0) + (logins > 0 ? 1 : 0);
     }

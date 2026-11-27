@@ -10,39 +10,152 @@
         </div>
 
         <div class="auth-pitch">
-            <h2 th:text="#{login.pitch}">Fewer empty chairs, fewer phone calls.</h2>
-            <ul class="auth-features">
-                <li><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg><span th:text="#{login.feature.reminders}">Reminders</span></li>
-                <li><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg><span th:text="#{login.feature.booking}">Booking</span></li>
-                <li><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg><span th:text="#{login.feature.languages}">Languages</span></li>
-            </ul>
+            <span class="auth-kicker" th:text="#{login.kicker}">For private clinics in Lebanon</span>
+            <h2><th:block th:text="#{login.pitch}">Your clinic's whole day,</th:block>
+                <em th:text="#{login.pitch.em}">in one place.</em></h2>
+            <p class="auth-sub" th:text="#{login.pitch.sub}">Appointments, patients, payments and reports. Add WhatsApp reminders and booking whenever you like.</p>
         </div>
 
         <!--/*
-          A patient's phone, decorative: the reminder arrives, Confirm is tapped, the clinic thanks them
-          (app.css plays it once as the page opens); two labels float beside it.
+          A short tour of Dorak at work, decorative: four scenes, each with its tab. app.js (data-tour)
+          turns them every few seconds, each tab's bar showing the time left, and stops on hover or a
+          click; with reduced motion it only changes on a click. Each scene's animations replay when
+          it comes back (app.css plays them under .is-active only). The names are made up.
         */-->
-        <div class="device-wrap" aria-hidden="true">
-            <div class="device">
-                <div class="device-screen">
-                    <div class="device-bar">
-                        <span class="avatar sm">DK</span>
-                        <div><strong th:text="#{login.chat.clinic}">Dr. Khoury's clinic</strong><span th:text="#{login.chat.online}">online</span></div>
+        <div class="auth-tour" data-tour>
+            <div class="tour-stage" aria-hidden="true">
+                <!--/* 1. Today: the day's appointments; one patient arrives. */-->
+                <div class="scene scene-today is-active" id="scene-0" data-scene>
+                    <div class="win">
+                        <div class="win-bar"><i></i><i></i><i></i><span th:text="#{nav.today}">Today</span></div>
+                        <div class="win-body">
+                            <div class="sc-head">
+                                <div><strong th:text="#{login.demo.day}">Wednesday 14 October</strong>
+                                    <span th:text="#{login.demo.doctor}">Dr. Khoury</span></div>
+                                <span class="sc-ring"><svg viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="15.5"/>
+                                    <circle class="fill" cx="18" cy="18" r="15.5" pathLength="100"/></svg><b dir="ltr">3/4</b></span>
+                            </div>
+                            <ul class="sc-rows">
+                                <li><time dir="ltr">9:00</time><span class="av" style="--hue:10">RH</span>
+                                    <span class="nm" th:text="#{login.demo.p1}">Rana Haddad</span>
+                                    <span class="st arrived" th:text="#{status.ARRIVED}">Arrived</span></li>
+                                <li><time dir="ltr">9:30</time><span class="av" style="--hue:200">KS</span>
+                                    <span class="nm" th:text="#{login.demo.p2}">Karim Saab</span>
+                                    <span class="st arrived" th:text="#{status.ARRIVED}">Arrived</span></li>
+                                <li class="is-next"><time dir="ltr">10:00</time><span class="av" style="--hue:290">MK</span>
+                                    <span class="nm" th:text="#{login.demo.p3}">Maya Khoury</span>
+                                    <span class="st-swap"><span class="st booked" th:text="#{status.BOOKED}">Booked</span>
+                                        <span class="st arrived" th:text="#{status.ARRIVED}">Arrived</span></span></li>
+                                <li><time dir="ltr">10:30</time><span class="av" style="--hue:140">SH</span>
+                                    <span class="nm" th:text="#{login.demo.p4}">Sami Haddad</span>
+                                    <span class="st booked" th:text="#{status.BOOKED}">Booked</span></li>
+                            </ul>
+                        </div>
                     </div>
-                    <div class="chat">
-                        <div class="bubble in"><span th:text="#{login.chat.reminder}">Reminder</span><time>9:00</time></div>
-                        <div class="bubble-buttons"><span th:text="#{login.chat.confirm}">Confirm</span><span th:text="#{login.chat.cancel}">Cancel</span></div>
-                        <div class="bubble out"><span th:text="#{login.chat.confirm}">Confirm</span><time>9:02 ✓✓</time></div>
-                        <div class="bubble in typing"><i></i><i></i><i></i></div>
-                        <div class="bubble in"><span th:text="#{login.chat.thanks}">See you tomorrow!</span><time>9:02</time></div>
+                    <span class="tour-float float-a"><svg class="icon"><use href="#i-user-check"/></svg><span th:text="#{status.ARRIVED}">Arrived</span></span>
+                </div>
+
+                <!--/* 2. Payments: an amount on an account, then the receipt. */-->
+                <div class="scene scene-money" id="scene-1" data-scene>
+                    <div class="win">
+                        <div class="win-bar"><i></i><i></i><i></i><span th:text="#{nav.balance}">Balance</span></div>
+                        <div class="win-body">
+                            <div class="sc-patient"><span class="av" style="--hue:200">KS</span>
+                                <div><strong th:text="#{login.demo.p2}">Karim Saab</strong>
+                                    <span th:text="#{ledger.owes('$45.00')}">Owes $45.00</span></div></div>
+                            <div class="sc-amount" dir="ltr"><span>$</span><b>45.00</b><i class="caret"></i></div>
+                            <div class="sc-methods"><span class="on" th:text="#{method.CASH}">Cash</span>
+                                <span th:text="#{method.WHISH}">Whish</span><span th:text="#{method.OMT}">OMT</span></div>
+                            <div class="sc-saved"><svg class="icon"><use href="#i-check-circle"/></svg><span th:text="#{add.saved-paid}">Payment recorded.</span></div>
+                        </div>
+                    </div>
+                    <div class="sc-receipt">
+                        <span class="rc-kind" th:text="#{receipt.title('12')}">Receipt no. 12</span>
+                        <strong th:text="#{login.demo.p2}">Karim Saab</strong>
+                        <b dir="ltr">$45.00</b>
+                        <span class="rc-stamp" th:text="#{receipt.paid}">Paid</span>
                     </div>
                 </div>
+
+                <!--/* 3. Report: the month, its figures counting up and its bars rising. */-->
+                <div class="scene scene-report" id="scene-2" data-scene>
+                    <div class="win">
+                        <div class="win-bar"><i></i><i></i><i></i><span th:text="#{nav.report}">Report</span></div>
+                        <div class="win-body">
+                            <div class="sc-head"><div><strong th:text="#{login.demo.month}">November 2026</strong>
+                                <span th:text="#{login.demo.doctor}">Dr. Khoury</span></div></div>
+                            <div class="sc-kpis">
+                                <div><span th:text="#{report.no-shows}">No-shows</span><b dir="ltr">3%</b></div>
+                                <div><span th:text="#{report.slots-saved}">Slots saved</span><b dir="ltr">12</b></div>
+                                <div class="money"><span th:text="#{login.demo.collected}">Collected</span><b dir="ltr">$2,840</b></div>
+                            </div>
+                            <div class="sc-bars" dir="ltr"><span style="--h:46%;--i:0"></span><span style="--h:62%;--i:1"></span>
+                                <span style="--h:55%;--i:2"></span><span style="--h:74%;--i:3"></span><span style="--h:68%;--i:4"></span>
+                                <span class="now" style="--h:92%;--i:5"></span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!--/* 4. WhatsApp, optional: the patient's phone; the reminder, Confirm, thanks. */-->
+                <div class="scene scene-whatsapp" id="scene-3" data-scene>
+                    <div class="device">
+                        <div class="device-screen">
+                            <div class="device-bar">
+                                <span class="avatar sm">DK</span>
+                                <div><strong th:text="#{login.chat.clinic}">Dr. Khoury's clinic</strong><span th:text="#{login.chat.online}">online</span></div>
+                            </div>
+                            <div class="chat">
+                                <div class="bubble in"><span th:text="#{login.chat.reminder}">Reminder</span><time>9:00</time></div>
+                                <div class="bubble-buttons"><span th:text="#{login.chat.confirm}">Confirm</span><span th:text="#{login.chat.cancel}">Cancel</span></div>
+                                <div class="bubble out"><span th:text="#{login.chat.confirm}">Confirm</span><time>9:02 ✓✓</time></div>
+                                <div class="bubble in typing"><i></i><i></i><i></i></div>
+                                <div class="bubble in"><span th:text="#{login.chat.thanks}">See you tomorrow!</span><time>9:02</time></div>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="tour-float float-b"><svg class="icon"><use href="#i-check-circle"/></svg><span th:text="#{status.CONFIRMED}">Confirmed</span></span>
+                </div>
             </div>
-            <span class="auth-chip chip-one"><svg class="icon"><use href="#i-chat"/></svg><span th:text="#{source.WHATSAPP}">WhatsApp</span></span>
-            <span class="auth-chip chip-two"><svg class="icon"><use href="#i-check-circle"/></svg><span th:text="#{status.CONFIRMED}">Confirmed</span></span>
+
+            <ol class="tour-steps" role="tablist" th:aria-label="#{login.tour}">
+                <li role="presentation">
+                    <button type="button" role="tab" class="tour-step is-active" data-step="0" aria-selected="true" aria-controls="scene-0"
+                            th:attr="data-hint=#{login.step.today.hint}">
+                        <span class="tour-icon"><svg class="icon" aria-hidden="true"><use href="#i-today"/></svg></span>
+                        <span class="tour-label" th:text="#{login.step.today}">Appointments</span>
+                        <span class="tour-bar" aria-hidden="true"><i></i></span>
+                    </button>
+                </li>
+                <li role="presentation">
+                    <button type="button" role="tab" class="tour-step" data-step="1" aria-selected="false" aria-controls="scene-1"
+                            th:attr="data-hint=#{login.step.money.hint}">
+                        <span class="tour-icon"><svg class="icon" aria-hidden="true"><use href="#i-wallet"/></svg></span>
+                        <span class="tour-label" th:text="#{login.step.money}">Payments</span>
+                        <span class="tour-bar" aria-hidden="true"><i></i></span>
+                    </button>
+                </li>
+                <li role="presentation">
+                    <button type="button" role="tab" class="tour-step" data-step="2" aria-selected="false" aria-controls="scene-2"
+                            th:attr="data-hint=#{login.step.report.hint}">
+                        <span class="tour-icon"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg></span>
+                        <span class="tour-label" th:text="#{login.step.report}">Reports</span>
+                        <span class="tour-bar" aria-hidden="true"><i></i></span>
+                    </button>
+                </li>
+                <li role="presentation">
+                    <button type="button" role="tab" class="tour-step" data-step="3" aria-selected="false" aria-controls="scene-3"
+                            th:attr="data-hint=#{login.step.whatsapp.hint}">
+                        <span class="tour-icon"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg></span>
+                        <span class="tour-label" th:text="#{login.step.whatsapp}">WhatsApp</span>
+                        <span class="tour-optional" th:text="#{login.optional}">Optional</span>
+                        <span class="tour-bar" aria-hidden="true"><i></i></span>
+                    </button>
+                </li>
+            </ol>
+            <p class="tour-hint" data-tour-hint aria-live="polite" th:text="#{login.step.today.hint}">Today and the week, every doctor at a glance</p>
         </div>
 
-        <p class="auth-note" th:text="#{app.tagline}">WhatsApp reminders and bookings for clinics in Lebanon</p>
+        <p class="auth-note" th:text="#{app.tagline}">Appointments, payments and WhatsApp reminders for clinics in Lebanon</p>
     </section>
 
     <section class="auth-main">

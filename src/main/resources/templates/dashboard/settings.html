@@ -6,7 +6,7 @@
     <header class="page-head">
         <div>
             <h1 th:text="#{settings.title}">Settings</h1>
-            <p class="muted" th:text="#{settings.intro}">Reminders, the language for new patients, and what Dorak tells patients on WhatsApp.</p>
+            <p class="muted" th:text="${whatsappOn} ? #{settings.intro} : #{settings.intro.no-whatsapp}">Reminders, the language for new patients, and what Dorak tells patients on WhatsApp.</p>
         </div>
     </header>
 
@@ -14,7 +14,7 @@
     <form method="post" th:action="@{/settings/clinic}" data-dirty-watch>
         <div class="grid-2">
             <div class="stack">
-                <section class="card">
+                <section class="card" th:if="${whatsappOn}">
                     <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg>
                         <h2 th:text="#{settings.section.reminders}">Reminders</h2></div>
                     <!--/* When the reminders go out: each stop lights up with its switch below (CSS :has). */-->
@@ -48,19 +48,20 @@
             </div>
 
             <section class="card">
-                <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg>
-                    <h2 th:text="#{settings.section.info}">Info on WhatsApp</h2></div>
-                <p class="hint" th:text="#{settings.contact.hint}">Sent to patients who tap Info on WhatsApp.</p>
+                <div class="section-head"><svg class="icon" aria-hidden="true"><use th:href="${whatsappOn} ? '#i-chat' : '#i-building'"/></svg>
+                    <h2 th:text="${whatsappOn} ? #{settings.section.info} : #{settings.section.address}">Info on WhatsApp</h2></div>
+                <p class="hint" th:text="${whatsappOn} ? #{settings.contact.hint} : #{settings.contact.hint.no-whatsapp}">Sent to patients who tap Info on WhatsApp.</p>
                 <div class="stack">
                     <label>
                         <span th:text="#{settings.address}">Address</span>
                         <textarea name="address" rows="2" th:maxlength="${contactMax}" th:text="${address}" data-preview="address"></textarea>
                     </label>
-                    <label>
+                    <label th:if="${whatsappOn}">
                         <span th:text="#{settings.hours-text}">Opening hours</span>
                         <textarea name="hoursText" rows="2" th:maxlength="${contactMax}" th:text="${hoursText}" data-preview="hours"></textarea>
                     </label>
                 </div>
+                <th:block th:if="${whatsappOn}">
                 <div class="preview-label" th:text="#{settings.preview}">Preview on WhatsApp</div>
                 <div class="preview" aria-hidden="true">
                     <div class="bubble in">
@@ -73,6 +74,7 @@
                         <time>10:00</time>
                     </div>
                 </div>
+                </th:block>
             </section>
         </div>
         <!--/* Stays at the foot of the screen; app.js marks the form "dirty" once something differs from what was loaded. */-->

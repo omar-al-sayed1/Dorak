@@ -52,8 +52,15 @@ class SettingsController {
                       @RequestParam(defaultValue = "false") boolean h2Enabled,
                       @RequestParam(defaultValue = "") String address,
                       @RequestParam(defaultValue = "") String hoursText) {
+        Clinic clinic = context.of(staff, request).clinic();
+        if (!clinic.isWhatsAppEnabled()) {
+            // The reminder switches are not on the page without WhatsApp: keep them for when it is back.
+            h24Enabled = clinic.isReminderH24Enabled();
+            h2Enabled = clinic.isReminderH2Enabled();
+            hoursText = clinic.getHoursText() == null ? "" : clinic.getHoursText();
+        }
         try {
-            clinicSettings.update(context.of(staff, request).clinicId(), Language.fromCode(defaultLanguage), h24Enabled,
+            clinicSettings.update(clinic.getId(), Language.fromCode(defaultLanguage), h24Enabled,
                     h2Enabled, address, hoursText);
             redirect.addFlashAttribute("notice", "notice.saved");
         } catch (IllegalArgumentException e) {

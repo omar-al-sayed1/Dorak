@@ -954,6 +954,76 @@
         }
     });
 
+    /*
+     * The operator's WhatsApp switch for a clinic (data-wa-mode): flipping it asks first, with what
+     * changes either way (data-confirm-on / data-confirm-off); "no" puts the switch back.
+     */
+    document.addEventListener("change", event => {
+        const input = event.target.closest?.("[data-wa-mode]");
+        if (!input) {
+            return;
+        }
+        const form = input.form;
+        const on = input.checked;
+        ask(on ? form.dataset.confirmOn : form.dataset.confirmOff, {calm: on}).then(ok => {
+            if (ok) {
+                form.querySelector("[name=enabled]").value = String(on);
+                form.submit();
+            } else {
+                input.checked = !on;
+            }
+        });
+    });
+
+    /*
+     * The sign-in page's tour (data-tour): a tab per scene. The shown tab's bar fills (CSS) and, when it
+     * is full, the next scene comes; hovering pauses it, a click picks a scene. With reduced motion
+     * nothing turns by itself.
+     */
+    document.querySelectorAll("[data-tour]").forEach(tour => {
+        const steps = [...tour.querySelectorAll("[data-step]")];
+        const scenes = [...tour.querySelectorAll("[data-scene]")];
+        const hint = tour.querySelector("[data-tour-hint]");
+        const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        if (still) {
+            tour.classList.add("is-still");
+        }
+        const show = index => {
+            steps.forEach((step, i) => {
+                step.classList.toggle("is-active", i === index);
+                step.setAttribute("aria-selected", String(i === index));
+            });
+            scenes.forEach((scene, i) => scene.classList.toggle("is-active", i === index));
+            if (hint) {
+                hint.textContent = steps[index].dataset.hint;
+                hint.classList.remove("swap");
+                void hint.offsetWidth;
+                hint.classList.add("swap");
+            }
+        };
+        steps.forEach((step, i) => {
+            step.addEventListener("click", () => show(i));
+            step.querySelector(".tour-bar i")?.addEventListener("animationend", () => {
+                if (!still) {
+                    show((i + 1) % steps.length);
+                }
+            });
+        });
+        tour.addEventListener("mouseenter", () => tour.classList.add("is-paused"));
+        tour.addEventListener("mouseleave", () => tour.classList.remove("is-paused"));
+        tour.addEventListener("keydown", event => {
+            const at = steps.indexOf(document.activeElement);
+            const forward = document.documentElement.dir === "rtl" ? "ArrowLeft" : "ArrowRight";
+            const back = document.documentElement.dir === "rtl" ? "ArrowRight" : "ArrowLeft";
+            if (at < 0 || (event.key !== forward && event.key !== back)) {
+                return;
+            }
+            const next = (at + (event.key === forward ? 1 : steps.length - 1)) % steps.length;
+            show(next);
+            steps[next].focus();
+        });
+    });
+
     /* A GET filter form with data-clean-query leaves its empty fields out of the address htmx pushes. */
     document.addEventListener("htmx:configRequest", event => {
         const formData = event.detail.formData;

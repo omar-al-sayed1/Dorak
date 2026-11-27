@@ -6,6 +6,7 @@ import java.util.List;
 import app.clinicreminders.common.Language;
 import app.clinicreminders.common.NotFoundException;
 import org.jspecify.annotations.Nullable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,9 +17,11 @@ public class ClinicSettings {
     public static final int NAME_MAX = 100;
 
     private final ClinicRepository clinics;
+    private final ApplicationEventPublisher events;
 
-    ClinicSettings(ClinicRepository clinics) {
+    ClinicSettings(ClinicRepository clinics, ApplicationEventPublisher events) {
         this.clinics = clinics;
+        this.events = events;
     }
 
     @Transactional(readOnly = true)
@@ -38,14 +41,34 @@ public class ClinicSettings {
      * @throws IllegalArgumentException if the name is blank or longer than {@value #NAME_MAX} characters
      */
     public Clinic create(String name, ZoneId timezone, Language defaultLanguage) {
-        return create(name, timezone, defaultLanguage, null);
+        return create(name, timezone, defaultLanguage, null, true);
     }
 
-    /** @throws IllegalArgumentException also for an email that does not look like one ({@link Clinic#email}) */
-    public Clinic create(String name, ZoneId timezone, Language defaultLanguage, @Nullable String email) {
+    /**
+     * @param whatsApp whether the clinic uses WhatsApp (reminders and booking); off is dashboard only
+     * @throws IllegalArgumentException also for an email that does not look like one ({@link Clinic#email})
+     */
+    public Clinic create(String name, ZoneId timezone, Language defaultLanguage, @Nullable String email, boolean whatsApp) {
         Clinic clinic = new Clinic(requireName(name), timezone, defaultLanguage);
         clinic.changeContactEmail(email);
+        clinic.changeWhatsAppEnabled(whatsApp);
         return clinics.save(clinic);
+    }
+
+    /**
+     * Turns the clinic's WhatsApp on or off. Off: no reminders and no messages from now on, pending
+     * reminders included. On again: the reminders of its upcoming appointments are planned again.
+     *
+     * @return whether anything changed
+     */
+    public boolean changeWhatsApp(long clinicId, boolean enabled) {
+        Clinic clinic = get(clinicId);
+        if (clinic.isWhatsAppEnabled() == enabled) {
+            return false;
+        }
+        clinic.changeWhatsAppEnabled(enabled);
+        events.publishEvent(new WhatsAppModeChanged(clinicId, enabled));
+        return true;
     }
 
     /** The operator's edit. @throws IllegalArgumentException for a blank or too long name */

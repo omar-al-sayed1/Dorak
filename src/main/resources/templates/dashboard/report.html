@@ -37,7 +37,7 @@
     <th:block th:with="t=${report.total()}">
     <!--/* The figures that show what the service does for the clinic. */-->
     <div class="stats report-stats">
-        <div class="stat tone-ok">
+        <div class="stat tone-ok" th:if="${whatsappOn}">
             <div class="stat-head"><span class="stat-label" th:text="#{report.slots-saved}">Slots saved</span></div>
             <div class="stat-value" th:text="${t.slotsSaved()}">6</div>
             <div class="stat-sub" th:text="#{report.refilled(${t.refilled() + ''})}">Rebooked: 4</div>
@@ -47,12 +47,12 @@
             <div class="stat-value" th:text="${t.noShows()}">3</div>
             <div class="stat-sub" th:text="${t.noShowPercent() != null} ? #{report.no-show-rate(${t.noShowPercent() + ''})} : ''">5% of appointments due</div>
         </div>
-        <div class="stat">
+        <div class="stat" th:if="${whatsappOn}">
             <div class="stat-head"><span class="stat-label" th:text="#{report.confirmed}">Confirmed by the patient</span></div>
             <div class="stat-value" th:text="${t.confirmed()}">41</div>
             <div class="stat-sub" th:text="#{report.reminders-sent(${t.remindersSent() + ''})}">Reminders sent: 96</div>
         </div>
-        <div class="stat tone-whatsapp">
+        <div class="stat tone-whatsapp" th:if="${whatsappOn}">
             <div class="stat-head"><span class="stat-label" th:text="#{report.on-whatsapp}">Booked on WhatsApp</span></div>
             <div class="stat-value" th:text="${t.bookedOnWhatsApp()}">22</div>
             <div class="stat-sub" th:text="#{report.of-appointments(${t.appointments() + ''})}">of 64 appointments</div>
@@ -77,7 +77,7 @@
                 <div class="total"><dt th:text="#{report.row.appointments}">Appointments</dt><dd th:text="${t.appointments()}">64</dd></div>
                 <div class="k-arrived"><dt th:text="#{report.row.arrived}">Arrived</dt><dd th:text="${t.arrived()}">48</dd></div>
                 <div class="k-no-show"><dt th:text="#{report.row.no-shows}">No-shows</dt><dd th:text="${t.noShows()}">3</dd></div>
-                <div class="good k-saved"><dt th:text="#{report.row.slots-saved}">Cancelled on WhatsApp at least 2 hours ahead</dt>
+                <div class="good k-saved" th:if="${whatsappOn}"><dt th:text="#{report.row.slots-saved}">Cancelled on WhatsApp at least 2 hours ahead</dt>
                     <dd th:text="${t.slotsSaved()}">6</dd></div>
                 <div class="sub"><dt th:text="#{report.row.refilled}">… rebooked by someone else</dt><dd th:text="${t.refilled()}">4</dd></div>
                 <div class="k-late"><dt th:text="#{report.row.late}">Cancelled by the patient less than 2 hours ahead</dt><dd th:text="${t.lateCancellations()}">1</dd></div>
@@ -192,7 +192,7 @@
     </section>
 
     <!--/* The clinic's messages: not for a doctor's own login. */-->
-    <section class="card" th:if="${staff.doctorId() == null}">
+    <section class="card" th:if="${staff.doctorId() == null and whatsappOn}">
         <div class="section-head">
             <h2 th:text="#{report.messages}">WhatsApp messages</h2>
             <span class="report-cost"><span class="muted" th:text="#{report.estimated-cost}">Estimated cost</span>

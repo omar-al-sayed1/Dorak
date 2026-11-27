@@ -27,6 +27,9 @@ public class BillingPlan {
     @Column(name = "monthly_fee_usd")
     private BigDecimal monthlyFeeUsd;
 
+    @Column(name = "monthly_fee_no_whatsapp_usd")
+    private BigDecimal monthlyFeeNoWhatsAppUsd;
+
     @Column(name = "discount_6_percent")
     private int discount6Percent;
 
@@ -53,7 +56,20 @@ public class BillingPlan {
         this.messageCosts = messageCosts;
     }
 
+    /** @throws IllegalArgumentException for a negative or too large fee */
+    void changeFeeWithoutWhatsApp(BigDecimal monthlyFeeUsd) {
+        Terms.check(monthlyFeeUsd, null, null, null);
+        this.monthlyFeeNoWhatsAppUsd = monthlyFeeUsd.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /** The plan for a clinic with WhatsApp. */
     public Terms terms() {
-        return new Terms(monthlyFeeUsd, discount6Percent, discount12Percent, graceDays, messageCosts);
+        return terms(true);
+    }
+
+    /** The plan for a clinic with or without WhatsApp: only the monthly fee differs. */
+    public Terms terms(boolean whatsApp) {
+        return new Terms(whatsApp ? monthlyFeeUsd : monthlyFeeNoWhatsAppUsd, discount6Percent, discount12Percent, graceDays,
+                messageCosts);
     }
 }

@@ -1923,7 +1923,7 @@ form.dirty .save-bar button.primary { animation: nudge .5s var(--spring); }
 .auth-features .icon { color: #f6b852; width: 1.3rem; height: 1.3rem; animation: pop-in .5s var(--spring) backwards; animation-delay: inherit; }
 .auth-note { animation: fade-in 1s .9s backwards; }
 
-.device-wrap { position: relative; align-self: center; width: min(330px, 100%); animation: rise .9s .35s var(--ease) backwards; }
+/* (The phone sits in the sign-in page's tour now: .scene-whatsapp, below.) */
 .device { width: 100%; rotate: -2.5deg; animation: auth-float 7s 1.4s ease-in-out infinite;
           box-shadow: 0 34px 60px -18px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 255, 255, .12); }
 [dir="rtl"] .device { rotate: 2.5deg; }
@@ -1945,9 +1945,6 @@ form.dirty .save-bar button.primary { animation: nudge .5s var(--spring); }
              background: #fff; color: #0e1923; font-size: .8rem; font-weight: 700; white-space: nowrap;
              box-shadow: 0 12px 28px -8px rgba(0, 0, 0, .45); animation: pop-in .6s var(--spring) backwards, auth-float 6s ease-in-out infinite; }
 .auth-chip .icon { width: 1.05rem; height: 1.05rem; }
-.chip-one { inset-block-start: 18%; inset-inline-start: -3.2rem; color: #128c4a; animation-delay: 1.3s, 2s; }
-.chip-two { inset-block-end: 4%; inset-inline-end: -3rem; animation-delay: 3.5s, 4.2s; }
-.chip-two .icon { color: #d98a14; }
 
 .auth-main { position: relative; overflow: hidden; background:
                  radial-gradient(34rem 24rem at 100% 0, color-mix(in srgb, var(--accent) 12%, transparent), transparent 65%),
@@ -1984,7 +1981,6 @@ form.dirty .save-bar button.primary { animation: nudge .5s var(--spring); }
 @media (max-width: 1100px) {
     .auth { grid-template-rows: auto 1fr; }
     .auth-brand { border-end-start-radius: 28px; border-end-end-radius: 28px; gap: 1rem; }
-    .device-wrap { display: none; }
     .auth-pitch h2 { margin: 0; max-width: none; }
     .auth-main { justify-content: flex-start; padding-block-start: 1.75rem; }
     .auth-mark { display: block; }
@@ -2406,6 +2402,188 @@ button.whish-button.is-busy .whish-arrow { visibility: hidden; }
 .latest-list li.is-online { background: linear-gradient(90deg, var(--whish-bg), transparent 55%); border-radius: 12px; }
 [dir="rtl"] .latest-list li.is-online { background: linear-gradient(270deg, var(--whish-bg), transparent 55%); }
 @media (max-width: 640px) { .latest-list .whish-chip span { display: none; } .latest-list .button { display: none; } }
+
+/* ---------- WhatsApp on or off per clinic (operator): the switch on Add a clinic and on the clinic's page ---------- */
+.modal-form-body label.setting, .wa-mode label.setting { flex-direction: row; align-items: center; gap: .75rem; cursor: pointer; }
+.wa-choice { margin-block-start: .25rem; padding: .7rem .8rem; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); }
+.wa-choice .grow, .wa-mode .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
+.wa-choice strong, .wa-mode strong { color: var(--text); font-size: .9rem; }
+.wa-choice .hint, .wa-mode .hint { margin: 0; font-weight: 400; }
+.wa-choice-icon { flex: none; display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 11px;
+    background: var(--brand-50); color: var(--brand-700); transition: background .2s, color .2s; }
+.wa-choice:has(input:not(:checked)) .wa-choice-icon, .wa-mode.is-off .wa-choice-icon { background: var(--sunken); color: var(--muted); }
+.wa-mode { margin-block-end: 1rem; }
+.wa-mode.is-off { border-style: dashed; }
+.wa-mode form { margin: 0; }
+.chip.chip-dashboard-only { background: var(--sunken); color: var(--text-2); }
+
+/* ---------- Add Payment: a new patient ---------- */
+.pick.pick-new { border-style: dashed; }
+.pick.pick-new .pick-new-icon { background: var(--brand-50); color: var(--brand-700); }
+.pick.pick-new.first { border-color: var(--brand-500); background: linear-gradient(135deg, var(--brand-50), var(--surface) 80%); }
+.new-patient .section-head { margin-block-end: .1rem; }
+.new-patient .form-actions { justify-content: flex-start; flex-wrap: wrap; }
+
+/* ---------- The sign-in page's tour: Dorak at work in four scenes, WhatsApp the optional one ---------- */
+.auth-kicker { display: inline-flex; align-items: center; gap: .45rem; margin-block-end: .8rem; padding: .28rem .7rem; border-radius: 999px;
+    background: rgba(255, 255, 255, .08); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14); color: #cdeee9; font-size: .78rem;
+    font-weight: 600; letter-spacing: .02em; animation: rise-sm .6s .1s var(--ease) backwards; }
+.auth-kicker::before { content: ""; width: .45rem; height: .45rem; border-radius: 50%; background: #f6b852;
+    box-shadow: 0 0 0 0 rgba(246, 184, 82, .6); animation: kicker-pulse 2.4s ease-out infinite; }
+@keyframes kicker-pulse { 70%, 100% { box-shadow: 0 0 0 .5rem rgba(246, 184, 82, 0); } }
+.auth-pitch h2 { max-width: 20ch; }
+.auth-pitch h2 em { font-style: normal; color: transparent; background: linear-gradient(100deg, #f6b852, #ffe2a8 45%, #7ff0dc);
+    -webkit-background-clip: text; background-clip: text; }
+.auth-sub { margin: 0; max-width: 46ch; color: #bfe6df; line-height: 1.55; animation: rise-sm .7s .25s var(--ease) backwards; }
+
+.auth-tour { --tour-ms: 6.5s; display: flex; flex-direction: column; gap: 1rem; animation: rise .9s .35s var(--ease) backwards; }
+.tour-stage { position: relative; height: 20.5rem; }
+.scene { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; visibility: hidden; pointer-events: none;
+    transform: translateY(14px) scale(.97); transition: opacity .55s var(--ease), transform .7s var(--ease), visibility 0s .7s; }
+.scene.is-active { opacity: 1; visibility: visible; transform: none; transition: opacity .55s .1s var(--ease), transform .7s .1s var(--ease), visibility 0s; }
+/* Each scene plays its story when it comes in, and again each time it comes back. */
+.scene:not(.is-active), .scene:not(.is-active) * { animation: none !important; }
+
+/* A window of the dashboard, light, tilted a little over the dark panel. */
+.win { width: min(370px, 100%); border-radius: 18px; overflow: hidden; background: #fbfdfc; color: #14201d; rotate: -1.5deg;
+    box-shadow: 0 34px 70px -24px rgba(0, 0, 0, .6), 0 0 0 1px rgba(255, 255, 255, .08);
+    animation: auth-float 8s 1s ease-in-out infinite; }
+[dir="rtl"] .win { rotate: 1.5deg; }
+.win-bar { display: flex; align-items: center; gap: .35rem; padding: .55rem .8rem; background: #eef4f2; border-block-end: 1px solid #e0e9e6;
+    font-size: .72rem; font-weight: 700; color: #4c5d59; }
+.win-bar i { width: .55rem; height: .55rem; border-radius: 50%; background: #d3dedb; }
+.win-bar i:first-child { background: #f2a33c; }
+.win-bar span { margin-inline-start: .45rem; }
+.win-body { display: flex; flex-direction: column; gap: .75rem; padding: .9rem 1rem 1.05rem; font-size: .8rem; }
+.sc-head { display: flex; align-items: center; justify-content: space-between; gap: .8rem; }
+.sc-head strong { display: block; font-size: .92rem; }
+.sc-head span { font-size: .72rem; color: #6b7c78; }
+.av { flex: none; display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%; font-size: .62rem; font-weight: 800;
+    background: hsl(var(--hue) 60% 92%); color: hsl(var(--hue) 45% 32%); }
+
+/* 1. Today */
+.sc-ring { position: relative; display: grid; place-items: center; width: 2.6rem; height: 2.6rem; }
+.sc-ring svg { position: absolute; inset: 0; rotate: -90deg; }
+.sc-ring circle { fill: none; stroke-width: 3.2; }
+.sc-ring .track { stroke: #e3ebe8; }
+.sc-ring .fill { stroke: #13857d; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 50;
+    animation: ring-fill 1.1s 2.6s var(--ease) forwards; }
+@keyframes ring-fill { to { stroke-dashoffset: 25; } }
+.sc-ring b { font-size: .62rem; }
+.sc-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
+.sc-rows li { display: flex; align-items: center; gap: .55rem; padding: .45rem .55rem; border-radius: 11px; background: #f3f7f6;
+    animation: row-in .5s var(--spring) backwards; }
+.sc-rows li:nth-child(1) { animation-delay: .35s; } .sc-rows li:nth-child(2) { animation-delay: .5s; }
+.sc-rows li:nth-child(3) { animation-delay: .65s; } .sc-rows li:nth-child(4) { animation-delay: .8s; }
+@keyframes row-in { from { opacity: 0; transform: translateX(-14px); } }
+[dir="rtl"] .sc-rows li { animation-name: row-in-rtl; }
+@keyframes row-in-rtl { from { opacity: 0; transform: translateX(14px); } }
+.sc-rows time { width: 2.4rem; font-weight: 700; color: #4c5d59; font-variant-numeric: tabular-nums; }
+.sc-rows .nm { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-rows li.is-next { background: #e2f4f1; box-shadow: inset 0 0 0 1.5px #13857d; animation: row-in .5s .65s var(--spring) backwards,
+    next-glow 1.6s 1.3s ease-in-out 1; }
+@keyframes next-glow { 50% { box-shadow: inset 0 0 0 1.5px #13857d, 0 0 0 5px rgba(19, 133, 125, .16); } }
+.st { padding: .14rem .5rem; border-radius: 999px; font-size: .64rem; font-weight: 800; white-space: nowrap; }
+.st.arrived { background: #dcf5e9; color: #0f7a4d; }
+.st.booked { background: #e9eef6; color: #3d5a80; }
+.st-swap { display: grid; }
+.st-swap > .st { grid-area: 1 / 1; justify-self: end; }
+.st-swap .booked { animation: st-out .3s 2.4s ease forwards; }
+.st-swap .arrived { opacity: 0; animation: st-in .45s 2.55s var(--spring) forwards; }
+@keyframes st-out { to { opacity: 0; transform: scale(.7); } }
+@keyframes st-in { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+
+/* Labels that float over a scene's corner. */
+.tour-float { position: absolute; display: inline-flex; align-items: center; gap: .4rem; padding: .4rem .75rem; border-radius: 999px;
+    background: #fff; color: #0e1923; font-size: .78rem; font-weight: 800; white-space: nowrap;
+    box-shadow: 0 14px 30px -10px rgba(0, 0, 0, .5); animation: pop-in .6s var(--spring) backwards, auth-float 6s ease-in-out infinite; }
+.tour-float .icon { width: 1.05rem; height: 1.05rem; }
+.float-a { inset-block-end: 1.2rem; inset-inline-end: 0; color: #0f7a4d; animation-delay: 2.7s, 3.3s; }
+.float-b { inset-block-end: .6rem; inset-inline-end: .2rem; animation-delay: 4.6s, 5.2s; }
+.float-b .icon { color: #d98a14; }
+
+/* 2. Payments */
+.scene-money { place-items: center; }
+.scene-money .win { translate: -2.2rem 0; }
+[dir="rtl"] .scene-money .win { translate: 2.2rem 0; }
+.sc-patient { display: flex; align-items: center; gap: .6rem; }
+.sc-patient strong { display: block; font-size: .9rem; }
+.sc-patient span { font-size: .72rem; color: #a15c07; font-weight: 700; }
+.sc-amount { display: flex; align-items: baseline; gap: .15rem; padding: .55rem .8rem; border-radius: 12px; background: #f3f7f6;
+    box-shadow: inset 0 0 0 1.5px #13857d; font-size: 1.7rem; font-weight: 800; letter-spacing: -.02em; color: #0a5853; }
+.sc-amount span { font-size: 1rem; color: #6b7c78; }
+.sc-amount b { overflow: hidden; white-space: nowrap; width: 0; animation: type-in .9s .6s steps(5, end) forwards; }
+@keyframes type-in { to { width: 5ch; } }
+.sc-amount .caret { width: 2px; height: 1.4rem; align-self: center; background: #13857d; animation: caret 1s steps(1) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+.sc-methods { display: flex; gap: .35rem; }
+.sc-methods span { padding: .3rem .65rem; border-radius: 9px; background: #f3f7f6; font-size: .7rem; font-weight: 700; color: #4c5d59; }
+.sc-methods .on { animation: method-on .4s 1.7s ease forwards; }
+@keyframes method-on { to { background: #13857d; color: #fff; } }
+.sc-saved { display: flex; align-items: center; gap: .4rem; padding: .45rem .6rem; border-radius: 10px; background: #dcf5e9; color: #0f7a4d;
+    font-weight: 800; animation: pop-in .5s 2.3s var(--spring) backwards; }
+.sc-saved .icon { width: 1rem; height: 1rem; }
+.sc-receipt { position: absolute; inset-block-start: 2.4rem; inset-inline-end: 0; width: 9.6rem; display: flex; flex-direction: column; gap: .2rem;
+    padding: .9rem .85rem 1.1rem; border-radius: 12px 12px 4px 4px; background: #fff; color: #14201d; rotate: 4deg;
+    box-shadow: 0 24px 46px -16px rgba(0, 0, 0, .55);
+    -webkit-mask: radial-gradient(circle .32rem at bottom, transparent 98%, #000) bottom / .9rem 100% repeat-x;
+    mask: radial-gradient(circle .32rem at bottom, transparent 98%, #000) bottom / .9rem 100% repeat-x;
+    animation: receipt-out .8s 2.7s var(--spring) backwards; }
+[dir="rtl"] .sc-receipt { rotate: -4deg; }
+@keyframes receipt-out { from { opacity: 0; transform: translateY(-34px) scale(.85); } }
+.sc-receipt .rc-kind { font-size: .62rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #6b7c78; }
+.sc-receipt strong { font-size: .82rem; }
+.sc-receipt b { font-size: 1.35rem; color: #0a5853; letter-spacing: -.02em; }
+.rc-stamp { align-self: flex-start; margin-block-start: .3rem; padding: .15rem .55rem; border: 2px solid #0f7a4d; border-radius: 7px; color: #0f7a4d;
+    font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; rotate: -8deg;
+    animation: stamp .5s 3.4s var(--spring) backwards; }
+
+/* 3. Report */
+.sc-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; }
+.sc-kpis > div { display: flex; flex-direction: column; gap: .1rem; padding: .5rem .55rem; border-radius: 11px; background: #f3f7f6;
+    animation: row-in .5s var(--spring) backwards; }
+.sc-kpis > div:nth-child(2) { animation-delay: .12s; } .sc-kpis > div:nth-child(3) { animation-delay: .24s; }
+.sc-kpis span { font-size: .62rem; font-weight: 700; color: #6b7c78; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-kpis b { font-size: 1.15rem; letter-spacing: -.02em; }
+.sc-kpis .money b { color: #a15c07; }
+.sc-bars { display: flex; align-items: flex-end; gap: .45rem; height: 6.2rem; padding-block-start: .3rem; border-block-end: 2px solid #e0e9e6; }
+.sc-bars span { flex: 1; height: var(--h); border-radius: 7px 7px 0 0; background: linear-gradient(180deg, #2aa296, #0e6f68); transform-origin: bottom;
+    animation: bar-grow .8s var(--ease) backwards; animation-delay: calc(.45s + var(--i) * .1s); }
+.sc-bars span.now { background: linear-gradient(180deg, #f6b852, #d98a14); box-shadow: 0 -6px 18px -6px rgba(242, 163, 60, .7); }
+
+/* 4. WhatsApp: the phone, smaller, with its chat replaying each time it comes back. */
+.scene-whatsapp .device { width: min(285px, 100%); }
+.scene-whatsapp .chat { min-height: 13.2rem; font-size: .76rem; }
+
+/* The tabs: each a part of Dorak, with a bar for the time left on the one shown. */
+.tour-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .45rem; }
+.tour-step { position: relative; overflow: hidden; width: 100%; min-height: 3.1rem; display: flex; flex-direction: column; align-items: flex-start;
+    gap: .3rem; padding: .55rem .65rem .7rem; border: 0; border-radius: 13px; background: rgba(255, 255, 255, .06); color: #bfe6df;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); font-size: .8rem; font-weight: 700; text-align: start; cursor: pointer;
+    transition: background .25s, color .25s, box-shadow .25s, translate .25s var(--spring); }
+.tour-step:hover { background: rgba(255, 255, 255, .11); color: #fff; translate: 0 -2px; }
+.tour-step:focus-visible { outline: none; box-shadow: inset 0 0 0 2px #f6b852; }
+.tour-step.is-active { background: rgba(255, 255, 255, .16); color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28); }
+.tour-icon { display: grid; place-items: center; width: 1.8rem; height: 1.8rem; border-radius: 9px; background: rgba(255, 255, 255, .1); color: #7ff0dc;
+    transition: background .25s, color .25s, rotate .35s var(--spring); }
+.tour-icon .icon { width: 1rem; height: 1rem; }
+.tour-step.is-active .tour-icon { background: #f6b852; color: #2a1a02; rotate: -6deg; }
+.tour-optional { position: absolute; inset-block-start: .5rem; inset-inline-end: .5rem; padding: .08rem .42rem; border-radius: 999px;
+    background: rgba(127, 240, 220, .16); color: #9ff5e5; font-size: .58rem; font-weight: 800; letter-spacing: .03em; }
+.tour-bar { position: absolute; inset-inline: .65rem; inset-block-end: .4rem; height: 3px; border-radius: 3px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.tour-bar i { display: block; width: 100%; height: 100%; border-radius: inherit; background: #f6b852; transform: scaleX(0); transform-origin: left; }
+[dir="rtl"] .tour-bar i { transform-origin: right; }
+.tour-step.is-active .tour-bar i { animation: tour-progress var(--tour-ms) linear forwards; }
+@keyframes tour-progress { to { transform: scaleX(1); } }
+.auth-tour.is-paused .tour-step.is-active .tour-bar i { animation-play-state: paused; }
+.auth-tour.is-still .tour-bar { display: none; }
+.tour-hint { margin: 0; min-height: 1.4em; color: #cdeee9; font-size: .86rem; }
+.tour-hint.swap { animation: rise-sm .45s var(--ease); }
+@media (prefers-reduced-motion: reduce) {
+    .scene, .scene.is-active { transition: none; transform: none; }
+    .scene.is-active * { animation-duration: .01s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
+}
+@media (max-width: 1100px) { .auth-tour { display: none; } }
 
 /* ---------- A doctor's page on a phone: section tabs, the hours as a list of days ---------- */
 .section-tabs, .hours-days { display: none; }

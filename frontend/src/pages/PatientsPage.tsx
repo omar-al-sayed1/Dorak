@@ -12,13 +12,13 @@ import { patientsUrl, relativeDay, type Counts, type Filter, type PatientRow, ty
 import { useSession } from "../session";
 import { PageSkeleton } from "../skeletons";
 
-const FILTERS: Array<{ key: Filter; count: keyof Counts; frontDesk?: boolean }> = [
+const FILTERS: Array<{ key: Filter; count: keyof Counts; frontDesk?: boolean; whatsApp?: boolean }> = [
   { key: "all", count: "all" },
   { key: "booked", count: "booked" },
   { key: "unbooked", count: "unbooked" },
   { key: "owes", count: "owes", frontDesk: true },
   { key: "family", count: "family", frontDesk: true },
-  { key: "opted-out", count: "optedOut" },
+  { key: "opted-out", count: "optedOut", whatsApp: true },
 ];
 
 /** The direction a column sorts in first: names A to Z and the soonest appointment, the rest biggest or latest first. */
@@ -31,7 +31,9 @@ const FIRST_DIRECTION: Record<Sort, "asc" | "desc"> = { name: "asc", next: "asc"
  */
 export function PatientsPage() {
   const t = useT();
-  const frontDesk = useSession().doctorId === null;
+  const session = useSession();
+  const frontDesk = session.doctorId === null;
+  const whatsApp = session.whatsApp !== false;
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const filter = (params.get("filter") ?? "all") as Filter;
@@ -122,7 +124,7 @@ export function PatientsPage() {
 
       {/* Each filter as a tile: its count, and along its foot its share of all the patients found. */}
       <nav className="filter-tiles" aria-label={t("patients.filters")}>
-        {FILTERS.filter((f) => frontDesk || !f.frontDesk).map((f) => {
+        {FILTERS.filter((f) => (frontDesk || !f.frontDesk) && (whatsApp || !f.whatsApp)).map((f) => {
           const count = first?.counts[f.count] ?? 0;
           const all = first?.counts.all ?? 0;
           return (
@@ -194,6 +196,7 @@ function PatientLine({ row, frontDesk, onAdd, onDeleted }: {
   row: PatientRow; frontDesk: boolean; onAdd: () => void; onDeleted: () => void;
 }) {
   const t = useT();
+  const whatsApp = useSession().whatsApp !== false;
   const queries = useQueryClient();
   const remove = useMutation({
     mutationFn: () => api<void>(`/api/patients/${row.id}`, { method: "DELETE" }),
@@ -215,7 +218,7 @@ function PatientLine({ row, frontDesk, onAdd, onDeleted }: {
             {frontDesk ? <Link to={`/patients/${row.id}`}><strong>{row.name}</strong></Link> : <strong>{row.name}</strong>}
             <span className="who-tags">
               <span className="tag">{t(`language.${row.language}`)}</span>
-              {row.optedOut && <span className="tag tag-danger" title={t("patients.opted-out")}><Icon name="ban" />
+              {row.optedOut && whatsApp && <span className="tag tag-danger" title={t("patients.opted-out")}><Icon name="ban" />
                 <span>{t("patients.filter.opted-out")}</span></span>}
               {family && <span className="family-tag" title={t("patients.family", row.family.join(", "))}>
                 <Icon name="users" /><span>{row.family.join(", ")}</span></span>}

@@ -46,6 +46,10 @@
                     <span class="field-icon money-field"><span class="currency-mark">$</span>
                         <input type="text" name="monthlyFee" inputmode="decimal" dir="ltr" required autocomplete="off"
                                th:value="${plan.monthlyFeeUsd()}"></span></label>
+                <label><span th:text="#{billing.fee.no-whatsapp}">Monthly fee without WhatsApp</span>
+                    <span class="field-icon money-field"><span class="currency-mark">$</span>
+                        <input type="text" name="monthlyFeeNoWhatsApp" inputmode="decimal" dir="ltr" required autocomplete="off"
+                               th:value="${planNoWhatsApp.monthlyFeeUsd()}"></span></label>
                 <label><span th:text="#{billing.discount6}">Discount for paying 6 months (%)</span>
                     <input type="number" name="discount6" min="0" max="100" dir="ltr" required th:value="${plan.discount6Percent()}"></label>
                 <label><span th:text="#{billing.discount12}">Discount for paying yearly (%)</span>

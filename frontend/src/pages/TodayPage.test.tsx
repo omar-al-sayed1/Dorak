@@ -78,6 +78,7 @@ describe("Today", () => {
     expect(screen.getByText("Cancelled by the patient")).toBeTruthy();
     expect(screen.getByText("Now 12:00 PM")).toBeTruthy();
     expect(screen.getByText("1 booked on WhatsApp")).toBeTruthy();
+    expect(document.querySelector(".stats .stat.tone-ok"), "the Confirmed card").not.toBeNull();
     expect(screen.getByRole("link", { name: "Needs attention (2)" }).getAttribute("href")).toBe("/attention");
     expect(document.documentElement.dir).toBe("ltr");
   });
@@ -94,6 +95,18 @@ describe("Today", () => {
 
     await waitFor(() => expect(fetch.mock.calls.filter(([, init]) => init?.method === "POST").map(([url]) => url))
       .toEqual(["/api/appointments/1/arrived", "/api/appointments/1/unmark"]));
+  });
+
+  it("shows nothing about WhatsApp for a clinic without it", async () => {
+    serve({ "/api/session": { ...session, whatsApp: false }, "/api/messages": messages, "/api/today": today });
+
+    renderApp();
+
+    expect(await screen.findByText("Rana Haddad")).toBeTruthy();
+    expect(screen.queryByText("1 booked on WhatsApp")).toBeNull();
+    expect(screen.queryByText("WhatsApp")).toBeNull();
+    expect(document.querySelector(".stats .stat.tone-ok"), "the Confirmed card").toBeNull();
+    expect(screen.queryByRole("link", { name: "Needs attention (2)" })).toBeNull();
   });
 
   it("is right to left in Arabic", async () => {

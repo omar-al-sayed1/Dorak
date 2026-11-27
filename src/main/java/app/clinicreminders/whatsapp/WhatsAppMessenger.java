@@ -36,7 +36,8 @@ public class WhatsAppMessenger {
     /** Waits before the 2nd and 3rd attempts. */
     static final List<Duration> BACKOFF = List.of(Duration.ofSeconds(1), Duration.ofSeconds(4));
 
-    public enum Result { SENT, FAILED, OPTED_OUT }
+    /** DISABLED: the clinic does not use WhatsApp; nothing was sent or logged. */
+    public enum Result { SENT, FAILED, OPTED_OUT, DISABLED }
 
     /** @param errorCode and {@code errorTitle}: Meta's error for a failed send (the code is null for network errors) */
     public record SendOutcome(Result result, @Nullable String waMessageId, @Nullable Long messageLogId,
@@ -70,6 +71,10 @@ public class WhatsAppMessenger {
      */
     public SendOutcome send(long clinicId, OutboundMessage message, @Nullable Long appointmentId) {
         Clinic clinic = clinics.findById(clinicId).orElseThrow(() -> new NotFoundException("Clinic", clinicId));
+        if (!clinic.isWhatsAppEnabled()) {
+            log.info("Not messaging for clinic {}: it does not use WhatsApp", clinicId);
+            return new SendOutcome(Result.DISABLED, null, null, null, null);
+        }
         if (patients.existsByClinicIdAndPhoneE164AndOptedOutTrue(clinicId, message.to())) {
             log.info("Not messaging an opted-out patient of clinic {}", clinicId);
             return new SendOutcome(Result.OPTED_OUT, null, null, null, null);

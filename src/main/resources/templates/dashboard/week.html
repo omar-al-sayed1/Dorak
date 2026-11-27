@@ -45,7 +45,7 @@
 
         <div class="legend" aria-hidden="true">
             <span class="lg-BOOKED"><i></i><th:block th:text="#{status.BOOKED}">Booked</th:block></span>
-            <span class="lg-CONFIRMED"><i></i><th:block th:text="#{status.CONFIRMED}">Confirmed</th:block></span>
+            <span class="lg-CONFIRMED" th:if="${whatsappOn}"><i></i><th:block th:text="#{status.CONFIRMED}">Confirmed</th:block></span>
             <span class="lg-ARRIVED"><i></i><th:block th:text="#{status.ARRIVED}">Arrived</th:block></span>
             <span class="lg-NO_SHOW"><i></i><th:block th:text="#{status.NO_SHOW}">No-show</th:block></span>
             <span class="lg-free"><i></i><th:block th:text="#{week.free}">Free</th:block></span>

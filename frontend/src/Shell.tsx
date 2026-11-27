@@ -111,7 +111,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="side-foot">
             <div className="account-row">
               <AccountMenu active={active} />
-              {session.clinicId !== null && session.doctorId === null && <Bell active={active === "attention"} />}
+              {session.clinicId !== null && session.doctorId === null && session.whatsApp !== false && <Bell active={active === "attention"} />}
             </div>
           </div>
         </aside>
@@ -204,7 +204,7 @@ function AccountMenu({ active }: { active: string }) {
       <div className="menu-panel">
         {session.clinicId !== null && (
           <>
-            {session.doctorId === null && (
+            {session.doctorId === null && session.whatsApp !== false && (
               <a className={active === "attention" ? "menu-attention active" : "menu-attention"} href="/attention">
                 <Icon name="bell" /><span>{t("nav.attention")}</span>
                 {count > 0 && <span className="nav-badge">{count}</span>}
