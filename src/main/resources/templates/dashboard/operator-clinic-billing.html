@@ -158,7 +158,7 @@
         <p class="empty-note" th:if="${payments.isEmpty()}"><svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>
             <span th:text="#{billing.invoices.none}">No payment yet.</span></p>
         <ol class="bill-timeline">
-            <li th:each="p, it : ${payments}">
+            <li th:each="p, it : ${payments}" th:classappend="${p.online()} ? 'is-online'">
                 <span class="bill-dot" aria-hidden="true"><svg class="icon"><use href="#i-check"/></svg></span>
                 <span class="grow">
                     <strong th:text="${p.period()}">1 September – 30 November 2026</strong>
@@ -166,6 +166,8 @@
                         <th:block th:text="#{billing.paid-on(${p.paidOn()})}">paid 2 September 2026</th:block> ·
                         <th:block th:text="#{'method.' + ${p.method()}}">Whish</th:block>
                         <span th:if="${p.reference()}" dir="ltr" th:text="'· ' + ${p.reference()}">· W-88213</span></span>
+                    <span class="whish-chip" th:if="${p.online()}" th:title="#{billing.online.hint}">
+                            <img th:src="@{/img/whish-money-icon.png}" alt="Whish" width="180" height="180"><span th:text="#{billing.online}">Paid online</span></span>
                 </span>
                 <strong class="ledger-amount" dir="ltr" th:text="${p.amount()}">$135.00</strong>
                 <a class="button sm" th:href="@{${p.invoiceUrl()}}" target="_blank" rel="noopener">

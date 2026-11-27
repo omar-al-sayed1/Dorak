@@ -40,6 +40,9 @@ public class Clinic {
 
     private String address;
 
+    @Column(name = "contact_email")
+    private String contactEmail;
+
     @Column(name = "hours_text")
     private String hoursText;
 
@@ -179,6 +182,33 @@ public class Clinic {
 
     public Language getDefaultLanguage() {
         return defaultLanguage;
+    }
+
+    /** How the operator reaches the clinic by email; optional. */
+    public @Nullable String getContactEmail() {
+        return contactEmail;
+    }
+
+    /** @throws IllegalArgumentException for an address that does not look like one ({@link #email}) */
+    public void changeContactEmail(@Nullable String email) {
+        this.contactEmail = email(email);
+    }
+
+    /**
+     * A clinic's email as typed, checked: blank is none; otherwise one address, up to 254 characters,
+     * something@domain.tld.
+     *
+     * @throws IllegalArgumentException for anything else
+     */
+    public static @Nullable String email(@Nullable String typed) {
+        if (typed == null || typed.isBlank()) {
+            return null;
+        }
+        String email = typed.strip();
+        if (email.length() > 254 || !email.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}")) {
+            throw new IllegalArgumentException("Not an email address");
+        }
+        return email;
     }
 
     public String getAddress() {

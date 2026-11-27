@@ -63,6 +63,10 @@ class OperatorBillingController {
                       Signals signals) {
     }
 
+    /** A recent payment on the overview, any clinic's. */
+    record LatestPayment(long clinicId, String clinic, String initials, int hue, BillingViews.PaymentView payment) {
+    }
+
     /** One bar of the income chart. */
     record ChartBar(String month, String amount, int percent, boolean current) {
     }
@@ -162,6 +166,15 @@ class OperatorBillingController {
         model.addAttribute("quickCounts", ClinicSignals.counts(signals));
         model.addAttribute("statuses", List.of("trial", "active", "due-soon", "overdue", "paused"));
         model.addAttribute("plan", billing.plan());
+        Map<Long, Clinic> byId = everyClinic.stream().collect(Collectors.toMap(Clinic::getId, Function.identity()));
+        model.addAttribute("latest", billing.latestPayments().stream()
+                .filter(payment -> byId.containsKey(payment.getClinicId()))
+                .map(payment -> {
+                    Clinic clinic = byId.get(payment.getClinicId());
+                    return new LatestPayment(clinic.getId(), clinic.getName(), avatars.initials(clinic.getName()),
+                            avatars.hue(clinic.getName()), views.payment(payment, language));
+                })
+                .toList());
         model.addAttribute("maxGrace", Terms.MAX_GRACE_DAYS);
         return "dashboard/operator-billing";
     }

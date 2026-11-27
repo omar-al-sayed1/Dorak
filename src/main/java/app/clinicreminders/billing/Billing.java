@@ -246,6 +246,12 @@ public class Billing {
         return payments.findByClinicIdOrderByPeriodEndDescIdDesc(clinicId);
     }
 
+    /** The last payments recorded, every clinic's, newest first: the operator's. */
+    @Transactional(readOnly = true)
+    public List<SubscriptionPayment> latestPayments() {
+        return payments.findTop8ByOrderByRecordedAtDescIdDesc();
+    }
+
     /** The payment behind a public invoice link. */
     @Transactional(readOnly = true)
     public Optional<SubscriptionPayment> invoice(UUID token) {

@@ -23,6 +23,9 @@ public interface SubscriptionPaymentRepository extends Repository<SubscriptionPa
     @CrossTenant("Operator area: what every clinic paid, for the income figures")
     List<SubscriptionPayment> findByPaidOnGreaterThanEqualAndPaidOnLessThan(LocalDate from, LocalDate to);
 
+    @CrossTenant("Operator area: the latest payments of every clinic, on the billing overview")
+    List<SubscriptionPayment> findTop8ByOrderByRecordedAtDescIdDesc();
+
     SubscriptionPayment save(SubscriptionPayment payment);
 
     void delete(SubscriptionPayment payment);

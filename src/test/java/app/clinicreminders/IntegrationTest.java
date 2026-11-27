@@ -19,6 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 @SpringBootTest(properties = {
         "whatsapp.client=fake",
+        "whish.client=fake",
         "app.base-url=https://reminders.test",
         "whatsapp.app-secret=test-app-secret",
         "whatsapp.verify-token=test-verify-token",
@@ -46,6 +47,9 @@ public abstract class IntegrationTest {
     @Autowired
     protected RecordingSleeper sleeper;
 
+    @Autowired
+    protected RecordingOperatorAlerts alerts;
+
     @BeforeEach
     void resetState() {
         jdbc.execute("truncate table clinic, message_rate, webhook_inbox, deleted_clinic restart identity cascade");
@@ -54,5 +58,6 @@ public abstract class IntegrationTest {
         clock.setInstant(DEFAULT_NOW);
         whatsApp.reset();
         sleeper.reset();
+        alerts.reset();
     }
 }

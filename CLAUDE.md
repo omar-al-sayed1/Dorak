@@ -57,6 +57,8 @@ If a library isn't compatible with Spring Boot 4 yet, tell me before downgrading
   Creates or refreshes "Dr. Demo" around today, prints the `drdemo` login and exits. Commands run on a
   random port without schedulers, so they work while the app is running.
 - WhatsApp simulator (dev profile only): `http://localhost:8080/dev/whatsapp`
+- Paying the subscription online (dev profile: fake Whish): sign in as `owner`, Billing → Pay with Whish;
+  the fake payment page is `/dev/whish/{id}`. `WHISH_CLIENT` turns it on (`fake`); off by default.
 - Webhook URL to register with Meta: `{APP_BASE_URL}/webhooks/whatsapp` (verify token = `WA_VERIFY_TOKEN`)
 - Production image: `docker build -t dorak .` (GitHub Actions builds and pushes
   `ghcr.io/omar-al-sayed1/dorak` from `main` after the tests pass). Server setup, deploys, backups,

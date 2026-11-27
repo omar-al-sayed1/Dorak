@@ -148,6 +148,29 @@ class OperatorPagesIT extends DashboardTest {
     }
 
     @Test
+    void aClinicCanHaveAnEmailThatIsCheckedAndOptional() {
+        assertThat(post(operator, "/operator/clinics").param("name", "Dr. Nassar").param("timezone", "Asia/Beirut")
+                .param("defaultLanguage", "ar").param("email", "  contact@nassar-clinic.com ")).hasStatus3xxRedirection();
+        Clinic nassar = clinics.findAllByOrderByNameAscIdAsc().stream().filter(c -> c.getName().equals("Dr. Nassar")).findFirst().orElseThrow();
+        assertThat(nassar.getContactEmail()).isEqualTo("contact@nassar-clinic.com");
+        assertThat(get(operator, "/operator/clinics/{id}", nassar.getId())).bodyText()
+                .contains("href=\"mailto:contact@nassar-clinic.com\"", "value=\"contact@nassar-clinic.com\"");
+        assertThat(get(operator, "/operator")).bodyText().contains("name=\"email\"", "Email (optional)");
+
+        assertThat(post(operator, "/operator/clinics").param("name", "Dr. Typo").param("timezone", "Asia/Beirut")
+                .param("defaultLanguage", "ar").param("email", "not-an-email")).hasRedirectedUrl("/operator")
+                .flash().containsEntry("error", "error.email");
+        assertThat(clinics.findAllByOrderByNameAscIdAsc()).noneMatch(c -> c.getName().equals("Dr. Typo"));
+
+        String page = "/operator/clinics/" + nassar.getId();
+        assertThat(post(operator, page).param("name", "Dr. Nassar").param("timezone", "Asia/Beirut").param("defaultLanguage", "ar")
+                .param("email", "nassar@clinic")).flash().containsEntry("error", "error.email");
+        assertThat(post(operator, page).param("name", "Dr. Nassar").param("timezone", "Asia/Beirut").param("defaultLanguage", "ar")
+                .param("email", "")).hasStatus3xxRedirection();
+        assertThat(clinics.findById(nassar.getId()).orElseThrow().getContactEmail()).as("emptied: no email").isNull();
+    }
+
+    @Test
     void createsAClinicAndOpensIt() {
         MvcTestResult result = post(operator, "/operator/clinics").param("name", " Dr. Saab ")
                 .param("timezone", "Asia/Beirut").param("defaultLanguage", "en").exchange();

@@ -21,6 +21,12 @@ class IntegrationTestConfiguration {
 
     @Bean
     @Primary
+    RecordingOperatorAlerts recordingOperatorAlerts() {
+        return new RecordingOperatorAlerts();
+    }
+
+    @Bean
+    @Primary
     RecordingSleeper recordingSleeper() {
         return new RecordingSleeper();
     }

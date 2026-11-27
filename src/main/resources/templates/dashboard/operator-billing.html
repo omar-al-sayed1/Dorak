@@ -152,6 +152,30 @@
             </div>
         </section>
     </div>
+
+    <!--/* The latest payments, every clinic's: the ones owners paid online with Whish stand out. */-->
+    <section class="card latest-payments">
+        <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>
+            <h2 th:text="#{billing.latest}">Latest payments</h2></div>
+        <p class="empty-note" th:if="${latest.isEmpty()}"><svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg>
+            <span th:text="#{billing.invoices.none}">No payment yet.</span></p>
+        <ul class="latest-list">
+            <li th:each="l : ${latest}" th:with="p=${l.payment()}" th:classappend="${p.online()} ? 'is-online'">
+                <span class="avatar square-avatar" th:style="'--hue:' + ${l.hue()}" th:text="${l.initials()}">CZ</span>
+                <span class="grow">
+                    <a th:href="@{/operator/clinics/{id}/billing(id=${l.clinicId()})}" th:text="${l.clinic()}">Clinique Zahle</a>
+                    <span class="muted small"><th:block th:text="#{${'billing.months.' + p.months()}}">3 months</th:block> ·
+                        <th:block th:text="#{billing.paid-on(${p.paidOn()})}">paid 2 September 2026</th:block>
+                        <th:block th:unless="${p.online()}" th:text="'· ' + #{'method.' + ${p.method()}}">· Cash</th:block></span>
+                </span>
+                <span class="whish-chip" th:if="${p.online()}" th:title="#{billing.online.hint}">
+                    <img th:src="@{/img/whish-money-icon.png}" alt="Whish" width="180" height="180"><span th:text="#{billing.online}">Paid online</span></span>
+                <strong class="ledger-amount" dir="ltr" th:text="${p.amount()}">$135.00</strong>
+                <a class="button sm" th:href="@{${p.invoiceUrl()}}" target="_blank" rel="noopener">
+                    <svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg><span th:text="#{billing.invoice}">Invoice</span></a>
+            </li>
+        </ul>
+    </section>
 </main>
 
 <!--/*

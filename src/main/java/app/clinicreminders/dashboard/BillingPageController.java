@@ -1,9 +1,11 @@
 package app.clinicreminders.dashboard;
 
+import java.net.URI;
 import java.time.Clock;
 import java.util.UUID;
 
 import app.clinicreminders.billing.Billing;
+import app.clinicreminders.billing.OnlinePayments;
 import app.clinicreminders.billing.Subscription;
 import app.clinicreminders.billing.SubscriptionPayment;
 import app.clinicreminders.clinic.Clinic;
@@ -19,10 +21,14 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /**
  * Billing as the clinic sees it. The owner's page ({@code /billing}, owners only, SecurityConfig):
- * where the subscription stands, what is due and how to pay, and past invoices. And an invoice's
+ * where the subscription stands, what is due and how to pay (online with Whish when it is on), and
+ * past invoices. And an invoice's
  * public page ({@code /i/{token}}), printable, opened from a link: the random token is the only key.
  */
 @Controller
@@ -37,9 +43,11 @@ class BillingPageController {
     private final Billing billing;
     private final BillingViews views;
     private final ClinicSettings clinics;
+    private final OnlinePayments onlinePayments;
     private final Clock clock;
 
-    BillingPageController(Billing billing, BillingViews views, ClinicSettings clinics, Clock clock) {
+    BillingPageController(Billing billing, BillingViews views, ClinicSettings clinics, OnlinePayments onlinePayments, Clock clock) {
+        this.onlinePayments = onlinePayments;
         this.clock = clock;
         this.billing = billing;
         this.views = views;
@@ -60,7 +68,36 @@ class BillingPageController {
             model.addAttribute("payments", views.payments(clinic.getId(), language));
             model.addAttribute("monthly", ReportView.dollars(billing.terms(subscription).monthlyFeeUsd()));
         }
+        model.addAttribute("payOnline", onlinePayments.available());
         return "dashboard/billing";
+    }
+
+    /** The owner pays online: off to the provider's page (Whish) for the months chosen. */
+    @PostMapping("/billing/pay")
+    String pay(@AuthenticationPrincipal StaffPrincipal staff, @RequestParam int months, RedirectAttributes redirect) {
+        try {
+            URI payUrl = onlinePayments.start(staff.requireClinicId(), months, staff.username(), clock.instant());
+            return "redirect:" + payUrl;
+        } catch (IllegalStateException | IllegalArgumentException | NotFoundException e) {
+            redirect.addFlashAttribute("error", "error.whish.unavailable");
+            return "redirect:/billing";
+        }
+    }
+
+    /**
+     * Where the provider sends the owner back. Whatever the address says, the payment's state comes
+     * from asking the provider (OnlinePayments#settle). Only the clinic's own payment is found.
+     */
+    @GetMapping("/billing/whish/return/{id}")
+    String paid(@AuthenticationPrincipal StaffPrincipal staff, @PathVariable String id, RedirectAttributes redirect) {
+        UUID paymentId = parse(id);
+        onlinePayments.find(staff.requireClinicId(), paymentId).orElseThrow(() -> new NotFoundException("Online payment", id));
+        switch (onlinePayments.settle(paymentId, clock.instant())) {
+            case PAID -> redirect.addFlashAttribute("notice", "notice.whish.paid");
+            case PENDING -> redirect.addFlashAttribute("notice", "notice.whish.pending");
+            case FAILED -> redirect.addFlashAttribute("error", "error.whish.failed");
+        }
+        return "redirect:/billing";
     }
 
     @GetMapping("/i/{token}")

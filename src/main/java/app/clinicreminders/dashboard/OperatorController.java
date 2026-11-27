@@ -189,7 +189,12 @@ class OperatorController {
     @PostMapping("/clinics")
     String create(RedirectAttributes redirect, @RequestParam(defaultValue = "") String name,
                   @RequestParam(defaultValue = "") String timezone, @RequestParam String defaultLanguage,
-                  @RequestParam(defaultValue = "" + Clinic.DEFAULT_SLOT_MINUTES) int slotMinutes) {
+                  @RequestParam(defaultValue = "" + Clinic.DEFAULT_SLOT_MINUTES) int slotMinutes,
+                  @RequestParam(defaultValue = "") String email) {
+        if (!validEmail(email)) {
+            redirect.addFlashAttribute("error", "error.email");
+            return "redirect:/operator";
+        }
         ZoneId zone = zone(timezone);
         if (zone == null) {
             redirect.addFlashAttribute("error", "error.timezone");
@@ -200,7 +205,7 @@ class OperatorController {
             return "redirect:/operator";
         }
         try {
-            Clinic clinic = clinics.create(name, zone, Language.fromCode(defaultLanguage));
+            Clinic clinic = clinics.create(name, zone, Language.fromCode(defaultLanguage), email);
             scheduleSettings.changeSlotLength(clinic.getId(), slotMinutes);
             // Billed from the start, on the general plan: the first payment is due after the trial.
             billing.enrolAll(LocalDate.ofInstant(clock.instant(), zone), clock.instant());
@@ -263,7 +268,12 @@ class OperatorController {
     @PostMapping("/clinics/{id}")
     String updateDetails(@PathVariable long id, RedirectAttributes redirect, @RequestParam(defaultValue = "") String name,
                          @RequestParam(defaultValue = "") String timezone, @RequestParam String defaultLanguage,
-                         @RequestParam(defaultValue = "" + Clinic.DEFAULT_SLOT_MINUTES) int slotMinutes) {
+                         @RequestParam(defaultValue = "" + Clinic.DEFAULT_SLOT_MINUTES) int slotMinutes,
+                         @RequestParam(defaultValue = "") String email) {
+        if (!validEmail(email)) {
+            redirect.addFlashAttribute("error", "error.email");
+            return redirectTo(id);
+        }
         ZoneId zone = zone(timezone);
         if (zone == null) {
             redirect.addFlashAttribute("error", "error.timezone");
@@ -274,7 +284,7 @@ class OperatorController {
             return redirectTo(id);
         }
         try {
-            clinics.updateDetails(id, name, zone, Language.fromCode(defaultLanguage));
+            clinics.updateDetails(id, name, zone, Language.fromCode(defaultLanguage), email);
             // Every doctor of the clinic follows it; booked appointments keep their times.
             scheduleSettings.changeSlotLength(id, slotMinutes);
             redirect.addFlashAttribute("notice", "notice.saved");
@@ -387,6 +397,15 @@ class OperatorController {
         LocalDate tomorrow = LocalDate.ofInstant(clock.instant(), clinic.getTimezone()).plusDays(1);
         return reminderMessages.reminder(ReminderKind.H24, patient, doctor,
                 tomorrow.atTime(LocalTime.of(10, 0)).atZone(clinic.getTimezone()).toInstant(), clinic.getTimezone());
+    }
+
+    private static boolean validEmail(String email) {
+        try {
+            Clinic.email(email);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     private static boolean validSlotMinutes(int minutes) {

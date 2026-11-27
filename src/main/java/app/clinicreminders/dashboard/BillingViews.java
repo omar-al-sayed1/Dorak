@@ -11,6 +11,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import app.clinicreminders.billing.Billing;
+import app.clinicreminders.billing.OnlinePayments;
+import app.clinicreminders.common.AppProperties;
 import app.clinicreminders.billing.Billing.Quote;
 import app.clinicreminders.billing.Standing;
 import app.clinicreminders.billing.Subscription;
@@ -56,8 +58,9 @@ public class BillingViews {
                      String totalPlain, boolean usual) {
     }
 
+    /** @param online paid by the owner with Whish, not entered by the operator */
     record PaymentView(long id, String number, String period, int months, String amount, String method, @Nullable String reference,
-                       String paidOn, String invoiceUrl) {
+                       String paidOn, String invoiceUrl, boolean online) {
     }
 
     private final Billing billing;
@@ -66,8 +69,13 @@ public class BillingViews {
     private final Clock clock;
     private final String payTo;
 
+    private final OnlinePayments onlinePayments;
+    private final AppProperties app;
+
     BillingViews(Billing billing, ClinicRepository clinics, MessageSource messages, Clock clock,
-                 @Value("${billing.pay-to:}") String payTo) {
+                 @Value("${billing.pay-to:}") String payTo, OnlinePayments onlinePayments, AppProperties app) {
+        this.onlinePayments = onlinePayments;
+        this.app = app;
         this.billing = billing;
         this.clinics = clinics;
         this.messages = messages;
@@ -139,7 +147,8 @@ public class BillingViews {
         return new PaymentView(payment.getId(), number(payment),
                 date(payment.getPeriodStart(), language) + " – " + date(payment.getPeriodEnd().minusDays(1), language),
                 payment.getMonths(), ReportView.dollars(payment.getAmountUsd()), payment.getMethod().name(), payment.getReference(),
-                date(payment.getPaidOn(), language), "/i/" + payment.getInvoiceToken());
+                date(payment.getPaidOn(), language), "/i/" + payment.getInvoiceToken(),
+                OnlinePayments.RECORDED_BY.equals(payment.getRecordedBy()));
     }
 
     /** "INV-2026-0042": the year it was paid in and the payment's number. */
@@ -162,6 +171,9 @@ public class BillingViews {
         Quote next = billing.quote(subscription, subscription.getPeriodMonths(), clock.instant());
         String text = messages.getMessage(standing.daysLeft() > 0 ? "billing.remind.due" : "billing.remind.overdue",
                 new Object[] {clinic.getName(), date(standing.dueOn(), language), ReportView.dollars(next.total())}, language.locale());
+        if (onlinePayments.available()) {
+            text += " " + messages.getMessage("billing.remind.pay-online", new Object[] {app.link("/billing")}, language.locale());
+        }
         if (!payTo.isEmpty()) {
             text += " " + messages.getMessage("billing.remind.pay-to", new Object[] {payTo}, language.locale());
         }

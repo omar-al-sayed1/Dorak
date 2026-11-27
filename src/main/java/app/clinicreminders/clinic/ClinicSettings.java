@@ -38,12 +38,20 @@ public class ClinicSettings {
      * @throws IllegalArgumentException if the name is blank or longer than {@value #NAME_MAX} characters
      */
     public Clinic create(String name, ZoneId timezone, Language defaultLanguage) {
-        return clinics.save(new Clinic(requireName(name), timezone, defaultLanguage));
+        return create(name, timezone, defaultLanguage, null);
+    }
+
+    /** @throws IllegalArgumentException also for an email that does not look like one ({@link Clinic#email}) */
+    public Clinic create(String name, ZoneId timezone, Language defaultLanguage, @Nullable String email) {
+        Clinic clinic = new Clinic(requireName(name), timezone, defaultLanguage);
+        clinic.changeContactEmail(email);
+        return clinics.save(clinic);
     }
 
     /** The operator's edit. @throws IllegalArgumentException for a blank or too long name */
-    public void updateDetails(long clinicId, String name, ZoneId timezone, Language defaultLanguage) {
+    public void updateDetails(long clinicId, String name, ZoneId timezone, Language defaultLanguage, @Nullable String email) {
         Clinic clinic = get(clinicId);
+        clinic.changeContactEmail(email);
         clinic.rename(requireName(name));
         clinic.changeTimezone(timezone);
         clinic.changeDefaultLanguage(defaultLanguage);

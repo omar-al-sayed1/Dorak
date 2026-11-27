@@ -128,7 +128,8 @@ demos.
 #### Operator: finding and deleting clinics
 
 - **Clinics list** (`/operator`): search by name; filter by WhatsApp connection, setup finished or
-  not, and billing (paid up, late or paused). "Add a clinic" opens a dialog.
+  not, and billing (paid up, late or paused). "Add a clinic" opens a dialog; a clinic's email is
+  optional (on the dialog and the clinic's details), checked to look like an address.
 - **Quick filters**, on the clinics list and on Billing: three cards to tick, each with its count, which
   combine with the search and the other filters. Subscription ends soon (payment due within 7 days),
   never paid (no payment recorded yet), gone quiet (no appointment booked in the last 14 days).
@@ -175,6 +176,18 @@ A ledger, not a payment system: nothing is charged to a card.
   when the plan changes later.
 - **Standing**, from the due day: trial (nothing paid yet), active, due soon (7 days before), overdue
   (within the grace), paused (after it).
+- **Paying online with Whish** (`/billing`, the owner): the owner picks 1, 3, 6 or 12 months and pays on
+  Whish's own page. Dorak keeps the attempt pending, asks Whish server to server whether it was paid
+  (never trusting what comes back in the browser), and records it once as an ordinary payment
+  (method Whish, Whish's reference): the due day moves, the invoice appears, a paused clinic resumes,
+  and the operator gets a Telegram message. A check every minute settles payments whose owner never
+  came back; an attempt not paid within 24 hours expires. The amount is the quote at the moment Pay
+  was pressed. The button is red, with Whish Money's logo (`static/img/whish-money-logo.png`, made from the
+  logo on whish.money; `whish-money-icon.png`, their app icon, marks online payments) and the total of the months chosen. On the operator's Billing
+  overview, "Latest payments" lists every clinic's last payments, and those an owner paid online are
+  marked "Paid online" (also on the clinic's own billing page). `WHISH_CLIENT`: `fake` in development (a stand-in page at `/dev/whish/{id}`), off
+  otherwise, which hides the button. The real Whish client waits for Whish's current API
+  documentation and sandbox credentials.
 - **Invoices and patients' receipts** (`/i/{token}`, `/r/{token}`) are sheets that print as one A4
   page. Their language: the reader's own when someone using the dashboard opens them, else the
   clinic's (an invoice) or the patient's (a receipt); a link on the page switches it (`?lang=`).

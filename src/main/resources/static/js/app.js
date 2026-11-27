@@ -942,6 +942,18 @@
         }
     });
 
+    /* Pay by Whish: the button shows the total of the months chosen. */
+    document.addEventListener("change", event => {
+        const months = event.target.closest?.("[data-whish-months]");
+        const amount = months?.form?.querySelector("[data-whish-amount]");
+        if (amount) {
+            amount.textContent = months.dataset.total;
+            amount.classList.remove("bump");
+            void amount.offsetWidth;
+            amount.classList.add("bump");
+        }
+    });
+
     /* A GET filter form with data-clean-query leaves its empty fields out of the address htmx pushes. */
     document.addEventListener("htmx:configRequest", event => {
         const formData = event.detail.formData;

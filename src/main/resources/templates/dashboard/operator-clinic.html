@@ -13,6 +13,8 @@
                 <div class="tags">
                     <span class="tag" dir="ltr" th:text="${clinic.timezone.id}">Asia/Beirut</span>
                     <span class="tag" th:text="#{'language.' + ${clinic.defaultLanguage.code()}}">Arabic</span>
+                    <a class="tag" th:if="${clinic.contactEmail}" th:href="'mailto:' + ${clinic.contactEmail}" dir="ltr">
+                        <svg class="icon" aria-hidden="true"><use href="#i-message"/></svg><span th:text="${clinic.contactEmail}">clinic@example.com</span></a>
                 </div>
             </div>
         </div>
@@ -176,6 +178,9 @@
                 <label><span th:text="#{operator.clinic.slot}">Appointment length (minutes)</span>
                     <input type="number" name="slotMinutes" th:value="${clinic.slotMinutes}" min="5" max="240" step="5" required>
                     <span class="hint" th:text="#{operator.clinic.slot.hint}">For every doctor of the clinic.</span></label>
+                <label><span th:text="#{operator.clinic.email}">Email (optional)</span>
+                    <input type="email" name="email" maxlength="254" dir="ltr" autocomplete="off" th:value="${clinic.contactEmail}"
+                           placeholder="clinic@example.com"></label>
                 <div class="form-actions"><button type="submit" class="primary" th:text="#{action.save}">Save</button></div>
             </form>
         </section>

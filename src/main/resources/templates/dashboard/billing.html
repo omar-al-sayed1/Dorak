@@ -4,7 +4,8 @@
 <body>
 <!--/*
   The clinic owner's billing: where the Dorak subscription stands, what the next payment comes to
-  (for 1, 3, 6 or 12 months), how to pay, and past invoices. Read-only: the operator records payments.
+  (for 1, 3, 6 or 12 months), how to pay, and past invoices. With online payment on (WHISH_CLIENT), the
+  owner pays here with Whish and it is recorded at once; otherwise the operator records payments.
 */-->
 <main class="container narrow">
     <header class="page-head">
@@ -51,23 +52,39 @@
         <section class="card">
             <div class="section-head"><svg class="icon" aria-hidden="true"><use href="#i-wallet"/></svg>
                 <h2 th:text="#{billing.owner.next}">Your next payment</h2></div>
-            <div class="quote-cards read-only">
+            <!--/* With online payment on: pick the months, then Pay with Whish. Otherwise the same cards, to read. */-->
+            <form method="post" th:action="@{/billing/pay}" class="stack pay-online" th:if="${payOnline}">
+                <p class="hint" th:text="#{billing.pay.choose}">Choose how many months, then pay with Whish.</p>
+                <div class="quote-cards" role="radiogroup" th:aria-label="#{billing.record.months}">
+                    <label class="quote-card" th:each="q : ${quotes}">
+                        <input type="radio" name="months" th:value="${q.months()}" th:checked="${q.usual()}" required
+                               th:attr="data-total=${q.total()}" data-whish-months>
+                        <th:block th:replace="~{this :: quoteBody(${q})}"></th:block>
+                    </label>
+                </div>
+                <!--/* Red, with Whish Money's logo (static/img/whish-money-logo.png) on white, and the amount of the months chosen (app.js). */-->
+                <div class="form-actions">
+                    <button type="submit" class="whish-button" th:aria-label="#{billing.pay.aria}"
+                            th:with="usual=${quotes.?[usual()]}">
+                        <span class="whish-label" th:text="#{billing.pay.button}">Pay by</span>
+                        <span class="whish-logo"><img th:src="@{/img/whish-money-logo.png}" alt="Whish Money" width="605" height="119"></span>
+                        <span class="whish-amount" dir="ltr" data-whish-amount
+                              th:text="${usual.isEmpty()} ? '' : ${usual[0].total()}">$228.00</span>
+                        <svg class="icon whish-arrow flip-rtl" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+                    </button>
+                </div>
+                <p class="hint" th:text="#{billing.pay.after}">You pay on Whish's own page. It is recorded here at once, with your invoice.</p>
+            </form>
+            <div class="quote-cards read-only" th:unless="${payOnline}">
                 <div class="quote-card" th:each="q : ${quotes}" th:classappend="${q.usual()} ? 'usual'">
-                    <span class="quote-months" th:text="#{${'billing.months.' + q.months()}}">3 months</span>
-                    <strong dir="ltr" th:text="${q.total()}">$135.00</strong>
-                    <span class="muted small" th:text="#{billing.until(${q.until()})}">until 1 March 2027</span>
-                    <span class="quote-lines">
-                        <span class="quote-save" th:if="${q.discount()}"><th:block th:text="#{billing.line.discount}">Discount</th:block>
-                            <span dir="ltr" th:text="'−' + ${q.discount()}">−$15.00</span></span>
-                        <span th:if="${q.messageCosts()}"><th:block th:text="#{billing.line.messages}">Messages</th:block>
-                            <span dir="ltr" th:text="'+' + ${q.messageCosts()}">+$4.10</span></span>
-                    </span>
+                    <th:block th:replace="~{this :: quoteBody(${q})}"></th:block>
                 </div>
             </div>
             <p class="pay-to" th:unless="${#strings.isEmpty(payTo)}">
                 <svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>
-                <span><strong th:text="#{billing.owner.how}">How to pay</strong> <span dir="auto" th:text="${payTo}">Whish 70 123 456</span></span></p>
-            <p class="hint" th:text="#{billing.owner.after}">After you pay, your operator records it and your invoice appears below.</p>
+                <span><strong th:text="${payOnline} ? #{billing.owner.how.other} : #{billing.owner.how}">How to pay</strong>
+                    <span dir="auto" th:text="${payTo}">Whish 70 123 456</span></span></p>
+            <p class="hint" th:unless="${payOnline}" th:text="#{billing.owner.after}">After you pay, your operator records it and your invoice appears below.</p>
         </section>
 
         <section class="card">
@@ -92,5 +109,18 @@
         </section>
     </th:block>
 </main>
+
+<!--/* One way to pay: the months, the total, to which day, and how the total is made up. */-->
+<th:block th:fragment="quoteBody(q)">
+    <span class="quote-months" th:text="#{${'billing.months.' + q.months()}}">3 months</span>
+    <strong dir="ltr" th:text="${q.total()}">$135.00</strong>
+    <span class="muted small" th:text="#{billing.until(${q.until()})}">until 1 March 2027</span>
+    <span class="quote-lines">
+        <span class="quote-save" th:if="${q.discount()}"><th:block th:text="#{billing.line.discount}">Discount</th:block>
+            <span dir="ltr" th:text="'−' + ${q.discount()}">−$15.00</span></span>
+        <span th:if="${q.messageCosts()}"><th:block th:text="#{billing.line.messages}">Messages</th:block>
+            <span dir="ltr" th:text="'+' + ${q.messageCosts()}">+$4.10</span></span>
+    </span>
+</th:block>
 </body>
 </html>

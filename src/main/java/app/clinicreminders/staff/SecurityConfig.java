@@ -52,6 +52,8 @@ class SecurityConfig {
                         // A clinic's invoice for the service: its random token is the key.
                         .requestMatchers(HttpMethod.GET, "/i/*").permitAll()
                         .requestMatchers("/dev/whatsapp", "/dev/whatsapp/**").permitAll()
+                        // The fake Whish's payment page (whish.client=fake only; otherwise nothing is there).
+                        .requestMatchers("/dev/whish/**").permitAll()
                         .requestMatchers("/operator", "/operator/**").hasRole(StaffRole.OPERATOR.name())
                         .requestMatchers("/", "/language", "/account/**", "/app", "/app/**", "/api/session",
                                 "/api/language").authenticated()
@@ -61,7 +63,7 @@ class SecurityConfig {
                         // Balance: money is the clinic's, not a doctor's login's.
                         .requestMatchers("/api/money/**").hasAnyRole(FRONT_DESK)
                         // What the clinic pays for the service: the owner's.
-                        .requestMatchers("/billing").hasRole(StaffRole.OWNER.name())
+                        .requestMatchers("/billing", "/billing/**").hasRole(StaffRole.OWNER.name())
                         .requestMatchers(HttpMethod.POST, "/doctors", "/doctors/*", "/doctors/*/delete", "/doctors/*/login",
                                 "/doctors/*/login/**").hasAnyRole(FRONT_DESK)
                         .requestMatchers(HttpMethod.DELETE, "/api/patients/*").hasAnyRole(FRONT_DESK)

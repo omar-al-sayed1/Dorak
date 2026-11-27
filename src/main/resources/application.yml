@@ -50,6 +50,11 @@ billing:
   # How clinics pay the operator, shown on their Billing page and in reminders, e.g. "Whish 70 123 456 (Omar)".
   pay-to: ${BILLING_PAY_TO:}
 
+# Owners paying the subscription online. "fake" for development; anything else (the default) is off,
+# which hides the Pay button. A real Whish client comes once Whish documents its API to us.
+whish:
+  client: ${WHISH_CLIENT:none}
+
 management:
   endpoints:
     web:

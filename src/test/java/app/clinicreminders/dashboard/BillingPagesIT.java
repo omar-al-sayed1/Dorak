@@ -34,6 +34,9 @@ class BillingPagesIT extends DashboardTest {
     Billing billing;
 
     @Autowired
+    app.clinicreminders.billing.FakeWhish whish;
+
+    @Autowired
     StaffUserRepository users;
 
     private StaffPrincipal operator;
@@ -155,21 +158,22 @@ class BillingPagesIT extends DashboardTest {
         assertThat(html).contains("class=\"active\"").contains("href=\"/operator/billing\"");
 
         // Search and filters narrow the list; the figures above stay those of every clinic.
-        assertThat(get(operator, "/operator/billing?q=hadd")).bodyText().contains("Clinics: 1 of 3", ">Dr. Haddad<", "$210.00")
+        assertThat(get(operator, "/operator/billing?q=hadd")).bodyText().as("the figures stay every clinic's").contains("$210.00");
+        assertThat(clinicList("/operator/billing?q=hadd")).contains("Clinics: 1 of 3", ">Dr. Haddad<")
                 .doesNotContain(">Clinique Zahle<", ">New clinic<");
-        assertThat(get(operator, "/operator/billing?status=overdue")).bodyText().contains(">Clinique Zahle<")
+        assertThat(clinicList("/operator/billing?status=overdue")).contains(">Clinique Zahle<")
                 .doesNotContain(">Dr. Haddad<", ">New clinic<");
-        assertThat(get(operator, "/operator/billing?status=trial")).bodyText().contains(">New clinic<").doesNotContain(">Dr. Haddad<");
-        assertThat(get(operator, "/operator/billing?terms=own")).bodyText().contains("Clinics: 1 of 3", ">Clinique Zahle<");
-        assertThat(get(operator, "/operator/billing?terms=plan&q=clinic")).bodyText().contains("Clinics: 1 of 3", ">New clinic<");
-        assertThat(get(operator, "/operator/billing?unpaid=true")).as("Dr. Haddad has paid").bodyText()
+        assertThat(clinicList("/operator/billing?status=trial")).contains(">New clinic<").doesNotContain(">Dr. Haddad<");
+        assertThat(clinicList("/operator/billing?terms=own")).contains("Clinics: 1 of 3", ">Clinique Zahle<");
+        assertThat(clinicList("/operator/billing?terms=plan&q=clinic")).contains("Clinics: 1 of 3", ">New clinic<");
+        assertThat(clinicList("/operator/billing?unpaid=true")).as("Dr. Haddad has paid")
                 .contains("Clinics: 2 of 3", ">Clinique Zahle<", ">New clinic<").doesNotContain(">Dr. Haddad<");
-        assertThat(get(operator, "/operator/billing?soon=true")).bodyText().contains("Clinics: 0 of 3");
+        assertThat(clinicList("/operator/billing?soon=true")).contains("Clinics: 0 of 3");
         billing.save(paid.getId(), 1, TODAY.plusDays(3), null, null, null, null, null, null, clock.instant());
-        assertThat(get(operator, "/operator/billing?soon=true")).as("due in three days").bodyText()
+        assertThat(clinicList("/operator/billing?soon=true")).as("due in three days")
                 .contains("Clinics: 1 of 3", ">Dr. Haddad<").doesNotContain(">Clinique Zahle<");
-        assertThat(get(operator, "/operator/billing?soon=true&unpaid=true")).as("both at once").bodyText().contains("Clinics: 0 of 3");
-        assertThat(get(operator, "/operator/billing?status=paused")).bodyText().contains("Clinics: 0 of 3", "No clinic matches.");
+        assertThat(clinicList("/operator/billing?soon=true&unpaid=true")).as("both at once").contains("Clinics: 0 of 3");
+        assertThat(clinicList("/operator/billing?status=paused")).contains("Clinics: 0 of 3", "No clinic matches.");
     }
 
     @Test
@@ -197,6 +201,60 @@ class BillingPagesIT extends DashboardTest {
         assertThat(get(owner, "/billing")).hasStatusOk().bodyText()
                 .contains("<h1>Billing</h1>", "Active", "1 December 2026", "$150.00", "$270.00", "/i/" + payment.getInvoiceToken())
                 .as("read-only, and only their own clinic").doesNotContain("name=\"monthlyFee\"", "$999.00", "Record a payment");
+    }
+
+    @Test
+    void theOwnerPaysWithWhishAndComesBackToTheInvoice() throws Exception {
+        dueOn(LocalDate.of(2026, 11, 1));
+        assertThat(get(owner, "/billing")).bodyText()
+                .contains("action=\"/billing/pay\"", "aria-label=\"Pay by Whish\"", "/img/whish-money-logo.png", "data-whish-amount",
+                        "name=\"months\" value=\"6\"")
+                .as("the operator's \"after you pay, we record it\" is for paying by hand").doesNotContain("your operator records it");
+
+        String whishPage = post(owner, "/billing/pay").param("months", "6").exchange().getResponse().getRedirectedUrl();
+        assertThat(whishPage).startsWith("https://reminders.test/dev/whish/");
+        java.util.UUID id = java.util.UUID.fromString(whishPage.substring(whishPage.lastIndexOf('/') + 1));
+
+        assertThat(get(owner, "/billing/whish/return/" + id)).as("back without paying")
+                .hasRedirectedUrl("/billing").flash().containsEntry("notice", "notice.whish.pending");
+        whish.pay(id);
+        assertThat(get(owner, "/billing/whish/return/" + id)).hasRedirectedUrl("/billing").flash().containsEntry("notice", "notice.whish.paid");
+        assertThat(get(owner, "/billing")).bodyText().contains("1 May 2027", "$270.00", "Whish");
+        assertThat(billing.payments(clinic.getId())).singleElement()
+                .satisfies(payment -> assertThat(payment.getMethod()).isEqualTo(Method.WHISH));
+
+        // The operator sees it at once, marked as paid online.
+        assertThat(get(operator, "/operator/billing")).bodyText()
+                .contains("Latest payments", "class=\"is-online\"", "Clinique Zahle", "Paid online", "$270.00", "6 months");
+        assertThat(get(operator, "/operator/clinics/" + clinic.getId() + "/billing")).bodyText()
+                .contains("class=\"is-online\"", "Paid online", "FAKE-");
+        assertThat(alerts.sent()).singleElement().asString().contains("Clinique Zahle paid $270.00 with Whish (6 months)");
+    }
+
+    @Test
+    void aPaymentEnteredByTheOperatorIsNotMarkedOnline() {
+        dueOn(LocalDate.of(2026, 11, 1));
+        billing.record(clinic.getId(), 3, null, Method.WHISH, "W-1", TODAY, "omar", clock.instant());
+
+        assertThat(get(operator, "/operator/billing")).bodyText().contains("Latest payments", "Clinique Zahle", "· Whish")
+                .doesNotContain("Paid online");
+    }
+
+    @Test
+    void onlyTheOwnerPaysAndOnlyForTheirOwnClinic() {
+        dueOn(LocalDate.of(2026, 11, 1));
+        assertThat(post(secretary, "/billing/pay").param("months", "1")).hasStatus(403);
+        assertThat(post(operator, "/billing/pay").param("months", "1")).hasStatus(403);
+
+        String whishPage = post(owner, "/billing/pay").param("months", "1").exchange().getResponse().getRedirectedUrl();
+        String id = whishPage.substring(whishPage.lastIndexOf('/') + 1);
+        Clinic other = data.clinic("Other");
+        StaffPrincipal otherOwner = staffOf(other, StaffRole.OWNER, Language.EN);
+        assertThat(get(otherOwner, "/billing/whish/return/" + id)).hasStatus(404);
+        assertThat(get(owner, "/billing/whish/return/not-an-id")).hasStatus(404);
+
+        assertThat(post(owner, "/billing/pay").param("months", "2")).as("not a period on offer: refused, back to Billing")
+                .hasRedirectedUrl("/billing");
     }
 
     @Test
@@ -251,6 +309,12 @@ class BillingPagesIT extends DashboardTest {
         billing.record(clinic.getId(), 3, null, Method.CASH, null, TODAY, "omar", clock.instant());
         assertThat(book(khoury)).hasStatus3xxRedirection();
         assertThat(jdbc.queryForObject("select count(*) from appointment", Integer.class)).isEqualTo(1);
+    }
+
+    /** The clinic list of the operator's billing page only: the latest payments under it are every clinic's, whatever the filter. */
+    private String clinicList(String uri) throws Exception {
+        String html = get(operator, uri).exchange().getResponse().getContentAsString();
+        return html.substring(html.indexOf("id=\"bill-results\""), html.indexOf("class=\"card latest-payments\""));
     }
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult book(Doctor doctor) {

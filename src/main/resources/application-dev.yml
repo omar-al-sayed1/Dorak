@@ -8,6 +8,10 @@ spring:
 app:
   base-url: ${APP_BASE_URL:http://localhost:8080}
 
+# Pay with Whish against a fake Whish page at /dev/whish/{id}: nothing is charged.
+whish:
+  client: fake
+
 # No backup container on a laptop.
 alerts:
   backup-max-age: 0s

@@ -35,7 +35,7 @@ public class ClinicRemoval {
      */
     static final List<String> TABLES = List.of("reminder", "charge", "payment", "day_close", "message_log", "conversation",
             "extra_slot", "schedule_rule", "schedule_exception", "appointment", "patient", "staff_user", "doctor",
-            "subscription_payment", "subscription");
+            "online_payment", "subscription_payment", "subscription");
 
     /** What goes with the clinic, to say so before it is deleted. */
     public record Contents(long logins, long doctors, long patients, long appointments) {

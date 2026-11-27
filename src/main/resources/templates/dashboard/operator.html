@@ -131,6 +131,8 @@
                 </label>
                 <label><span th:text="#{operator.clinic.slot}">Appointment length (minutes)</span>
                     <input type="number" name="slotMinutes" value="20" min="5" max="240" step="5" required></label>
+                <label><span th:text="#{operator.clinic.email}">Email (optional)</span>
+                    <input type="email" name="email" maxlength="254" dir="ltr" autocomplete="off" placeholder="clinic@example.com"></label>
             </div>
             <div class="modal-actions">
                 <button type="button" data-dialog-close th:text="#{action.cancel}">Cancel</button>
