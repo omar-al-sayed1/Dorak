@@ -4,7 +4,7 @@
 #   docker build -t dorak .
 
 # --- Build: Maven builds the React app (it downloads its own Node) and the Spring Boot jar. ---
-FROM eclipse-temurin:21-jdk AS build
+FROM eclipse-temurin:25-jdk AS build
 WORKDIR /src
 COPY mvnw pom.xml ./
 COPY .mvn .mvn
@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/root/.m2 \
     && cp target/clinic-reminders-*.jar /app.jar
 
 # --- Run: a JRE only, as an unprivileged user. ---
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 RUN useradd --system --uid 10001 --home-dir /app dorak
 WORKDIR /app
 COPY --from=build /app.jar app.jar
