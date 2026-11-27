@@ -18,7 +18,7 @@
 
     <properties>
         <java.version>21</java.version>
-        <htmx.version>2.0.11</htmx.version>
+        <htmx.version>4.0.2</htmx.version>
         <!-- Node for the React dashboard (frontend/), downloaded into frontend/node by the build. -->
         <node.version>v24.18.0</node.version>
         <skipTests>false</skipTests>
